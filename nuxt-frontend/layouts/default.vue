@@ -253,12 +253,16 @@ const toggleTheme = () => {
 const navigation = computed(() => {
   const baseNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: 'i-heroicons-home' },
-    { name: 'Tontines', href: '/tontines', icon: 'i-heroicons-users' },
     { name: 'Contributions', href: '/contributions', icon: 'i-heroicons-banknotes' },
     { name: 'Loans', href: '/loans', icon: 'i-heroicons-credit-card' },
     { name: 'Payments', href: '/payments', icon: 'i-heroicons-banknotes' },
     { name: 'Reports', href: '/reports', icon: 'i-heroicons-chart-bar' }
   ]
+  
+  // Add Tontines link only for admins
+  if (user.value?.role === 'admin' || user.value?.role === 'president') {
+    baseNavigation.splice(1, 0, { name: 'Tontines', href: '/tontines', icon: 'i-heroicons-users' })
+  }
   
   return baseNavigation
 })

@@ -3,7 +3,7 @@
     <div>
       <PageHeader 
         title="Tontines" 
-        description="Browse and manage tontines"
+        :description="isAdmin ? 'Browse and manage tontines' : 'Browse available tontines'"
       >
         <template #actions>
           <ActionButton 

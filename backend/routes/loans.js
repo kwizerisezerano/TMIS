@@ -194,13 +194,19 @@ router.post('/', checkTontineStatus, async (req, res) => {
       [finalUserId, 'Loan Request Submitted', `Your loan request of RWF ${finalLoanAmount.toLocaleString()} has been submitted successfully and is under review.`, 'info']
     );
 
-    // Send email notification to user about loan approval
-    if (userPhoneNumber) {
-      try {
-        await sendLoanApprovalEmail(userPhoneNumber, finalLoanAmount, result.insertId, db);
-      } catch (emailError) {
-        console.error('Email notification error:', emailError);
-      }
+    // Add notifications for tontine admins
+    const [tontineAdmins] = await db.execute(
+      `SELECT DISTINCT u.id FROM users u 
+       JOIN tontine_members tm ON u.id = tm.user_id 
+       WHERE tm.tontine_id = ? AND u.role IN ("admin", "president")`,
+      [finalTontineId]
+    );
+    
+    for (const admin of tontineAdmins) {
+      await db.execute(
+        'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+        [admin.id, 'New Loan Request', `New loan request of RWF ${finalLoanAmount.toLocaleString()} submitted by member for review.`, 'info']
+      );
     }
 
     // Auto-approve loan if within limits and send email notification
@@ -217,11 +223,13 @@ router.post('/', checkTontineStatus, async (req, res) => {
         [finalUserId, 'Loan Approved', `Your loan request of RWF ${finalLoanAmount.toLocaleString()} has been approved successfully.`, 'success']
       );
 
-      // Send email notification about loan approval (no payment disbursement)
-      try {
-        await sendLoanApprovalEmail(userPhoneNumber, finalLoanAmount, result.insertId, db);
-      } catch (emailError) {
-        console.error('Email notification error:', emailError);
+      // Send email notification about loan approval
+      if (userPhoneNumber) {
+        try {
+          await sendLoanApprovalEmail(userPhoneNumber, finalLoanAmount, result.insertId, finalTontineId, db);
+        } catch (emailError) {
+          console.error('Email notification error:', emailError);
+        }
       }
     }
 
@@ -367,7 +375,7 @@ router.post('/:loanId/enforce-payment', async (req, res) => {
 });
 
 // Send email notification for loan approval
-async function sendLoanApprovalEmail(phoneNumber, loanAmount, loanId, db) {
+async function sendLoanApprovalEmail(phoneNumber, loanAmount, loanId, tontineId, db) {
   const { sendLoanEmail } = require('../utils/email');
   
   try {
@@ -389,15 +397,21 @@ async function sendLoanApprovalEmail(phoneNumber, loanAmount, loanId, db) {
       
       await sendLoanEmail(user.email, loanData);
       
-      // Send notification to tontine admin
+      // Send notification to admins who are members of this tontine
       const { sendAdminLoanNotification } = require('../utils/email');
-      const [tontineAdmin] = await db.execute(
-        'SELECT u.email FROM users u JOIN tontines t ON u.id = t.creator_id WHERE t.id = ?',
-        [1]
+      const [tontineAdmins] = await db.execute(
+        `SELECT DISTINCT u.email FROM users u 
+         JOIN tontine_members tm ON u.id = tm.user_id 
+         WHERE tm.tontine_id = ? AND u.role IN ("admin", "president")`,
+        [tontineId]
       );
       
-      if (tontineAdmin.length > 0) {
-        await sendAdminLoanNotification(tontineAdmin[0].email, loanData);
+      for (const admin of tontineAdmins) {
+        try {
+          await sendAdminLoanNotification(admin.email, loanData);
+        } catch (emailError) {
+          console.error(`Failed to send email to admin ${admin.email}:`, emailError);
+        }
       }
       console.log(`Loan approval email sent to ${user.email} for loan ${loanId}`);
     }
