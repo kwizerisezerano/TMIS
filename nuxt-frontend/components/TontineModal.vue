@@ -6,7 +6,7 @@
       </template>
       
       <!-- Form Mode (Create/Edit) -->
-      <div v-if="mode !== 'delete'" class="space-y-4">
+      <div v-if="mode !== 'delete' && mode !== 'view'" class="space-y-4">
         <UFormGroup label="Tontine Name" required>
           <UInput v-model="formData.name" placeholder="Enter tontine name" />
         </UFormGroup>
@@ -30,6 +30,52 @@
         <UFormGroup label="End Date (Optional)">
           <UInput v-model="formData.end_date" type="date" :min="formData.start_date || today" />
         </UFormGroup>
+      </div>
+
+      <!-- View Mode -->
+      <div v-else-if="mode === 'view'" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium text-gray-700">Tontine Name</label>
+            <div class="text-lg font-semibold text-green-600">{{ tontine?.name }}</div>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700">Status</label>
+            <div class="text-sm" :class="tontine?.status === 'active' ? 'text-green-600' : 'text-red-600'">{{ tontine?.status?.toUpperCase() }}</div>
+          </div>
+        </div>
+        
+        <div>
+          <label class="text-sm font-medium text-gray-700">Description</label>
+          <div class="text-gray-900">{{ tontine?.description || 'No description' }}</div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium text-gray-700">Monthly Contribution</label>
+            <div class="text-lg font-semibold text-green-600">RWF {{ Number(tontine?.contribution_amount || 0).toLocaleString() }}</div>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700">Members</label>
+            <div class="text-lg font-semibold">{{ tontine?.member_count || 0 }}/{{ tontine?.max_members }}</div>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium text-gray-700">Start Date</label>
+            <div class="text-gray-900">{{ formatDate(tontine?.start_date) }}</div>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700">End Date</label>
+            <div class="text-gray-900">{{ formatDate(tontine?.end_date) || 'Not set' }}</div>
+          </div>
+        </div>
+        
+        <div>
+          <label class="text-sm font-medium text-gray-700">Total Contributions</label>
+          <div class="text-2xl font-bold text-green-600">RWF {{ Number(tontine?.total_contributions || 0).toLocaleString() }}</div>
+        </div>
       </div>
 
       <!-- Delete Mode -->
@@ -57,8 +103,8 @@
       
       <template #footer>
         <div class="flex gap-2 justify-end">
-          <UButton @click="cancel" variant="outline">Cancel</UButton>
-          <UButton @click="confirm" :color="buttonColor" :loading="loading">
+          <UButton @click="cancel" variant="outline">{{ mode === 'view' ? 'Close' : 'Cancel' }}</UButton>
+          <UButton v-if="mode !== 'view'" @click="confirm" :color="buttonColor" :loading="loading">
             {{ buttonText }}
           </UButton>
         </div>
@@ -72,8 +118,8 @@ const props = defineProps({
   modelValue: Boolean,
   mode: {
     type: String,
-    default: 'create', // 'create', 'edit', 'delete'
-    validator: (value) => ['create', 'edit', 'delete'].includes(value)
+    default: 'create', // 'create', 'edit', 'delete', 'view'
+    validator: (value) => ['create', 'edit', 'delete', 'view'].includes(value)
   },
   tontine: Object,
   loading: Boolean
@@ -102,6 +148,7 @@ const title = computed(() => {
     case 'create': return 'Create New Tontine'
     case 'edit': return 'Edit Tontine'
     case 'delete': return 'Delete Tontine'
+    case 'view': return 'Tontine Details'
     default: return 'Tontine'
   }
 })
@@ -109,6 +156,7 @@ const title = computed(() => {
 const headerClass = computed(() => {
   switch (props.mode) {
     case 'delete': return 'text-red-600'
+    case 'view': return 'text-blue-600'
     default: return 'text-green-600'
   }
 })
@@ -167,4 +215,13 @@ watch(isOpen, (newValue) => {
     }
   }
 })
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'Not set'
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
 </script>

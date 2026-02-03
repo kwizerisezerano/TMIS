@@ -223,6 +223,11 @@ const handleModalConfirm = async (formData) => {
         description: 'Tontine has been deleted successfully',
         color: 'green'
       })
+      
+      // Wait for user to see the message before closing modal
+      setTimeout(() => {
+        showModal.value = false
+      }, 1500)
     } else {
       const isEdit = modalMode.value === 'edit'
       const url = isEdit ? `http://localhost:8000/api/tontines/${selectedTontine.value.id}` : 'http://localhost:8000/api/tontines'
@@ -245,9 +250,9 @@ const handleModalConfirm = async (formData) => {
         description: isEdit ? 'Tontine has been updated successfully' : 'New tontine has been created successfully',
         color: 'green'
       })
+      
+      showModal.value = false
     }
-    
-    showModal.value = false
     await fetchTontines()
   } catch (error) {
     const toast = useToast()
