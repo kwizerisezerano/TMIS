@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-white">
-    <div class="max-w-6xl mx-auto p-4 sm:p-6">
+    <div>
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8 gap-4">
         <div>
@@ -19,37 +19,37 @@
           <div class="text-gray-500">No tontines joined yet</div>
         </div>
         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div v-for="tontine in userTontines" :key="tontine.id" class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+          <div v-for="tontine in userTontines" :key="tontine.id" class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg p-4 shadow-sm hover:shadow-lg transition-all duration-200">
             <div class="flex justify-between items-start mb-3">
-              <h3 class="font-semibold text-lg text-gray-800">{{ tontine.name }}</h3>
-              <UBadge :color="tontine.status === 'active' ? 'green' : 'gray'" size="xs">
+              <h3 class="font-semibold text-lg text-gray-800 dark:text-white">{{ tontine.name }}</h3>
+              <UBadge :color="tontine.status === 'active' ? 'gray' : 'gray'" size="xs">
                 {{ tontine.status }}
               </UBadge>
             </div>
-            <p class="text-sm text-gray-600 mb-3">{{ tontine.description }}</p>
+            <p class="text-sm text-gray-600 dark:text-slate-400 mb-3">{{ tontine.description }}</p>
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
-                <span class="text-gray-600">My Shares:</span>
+                <span class="text-gray-600 dark:text-slate-400">My Shares:</span>
                 <span class="font-semibold text-blue-600">{{ tontine.user_shares || 1 }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-600">Monthly Contribution:</span>
-                <span class="font-semibold text-green-600">{{ ((tontine.user_shares || 1) * tontine.contribution_amount).toLocaleString() }} RWF</span>
+                <span class="text-gray-600 dark:text-slate-400">Monthly Contribution:</span>
+                <span class="font-semibold text-gray-600 dark:text-slate-400">{{ ((tontine.user_shares || 1) * tontine.contribution_amount).toLocaleString() }} RWF</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-600">Members:</span>
-                <span class="text-gray-800">{{ tontine.member_count || 0 }}/{{ tontine.max_members }}</span>
+                <span class="text-gray-600 dark:text-slate-400">Members:</span>
+                <span class="text-gray-800 dark:text-white">{{ tontine.member_count || 0 }}/{{ tontine.max_members }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-600">Total Saved:</span>
-                <span class="font-semibold text-purple-600">{{ getTontineSavings(tontine.id).toLocaleString() }} RWF</span>
+                <span class="text-gray-600 dark:text-slate-400">Total Saved:</span>
+                <span class="font-semibold text-purple-600">RWF {{ Math.round(getTontineSavings(tontine.id)).toLocaleString() }}</span>
               </div>
             </div>
             <div class="mt-4 flex gap-2">
-              <UButton @click="navigateTo(`/tontine-details?id=${tontine.id}`)" size="xs" class="flex-1">
+              <UButton @click="navigateTo(`/tontine-details?id=${tontine.id}`)" size="xs" color="gray" class="flex-1">
                 View Details
               </UButton>
-              <UButton @click="navigateTo(`/manage?tontine=${tontine.id}`)" v-if="user?.role === 'admin'" size="xs" color="green" variant="outline">
+              <UButton @click="navigateTo(`/manage?tontine=${tontine.id}`)" v-if="user?.role === 'admin'" size="xs" color="gray" variant="outline">
                 Manage
               </UButton>
             </div>
@@ -57,64 +57,105 @@
         </div>
       </div>
 
-      <!-- Stats Cards by Tontine -->
-      <div v-if="userTontines.length > 0" class="mb-6 sm:mb-8">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Tontine Statistics</h2>
-        <div v-for="tontine in userTontines" :key="tontine.id" class="mb-6">
-          <h3 class="text-lg font-medium text-green-600 mb-3">{{ tontine.name }}</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <UCard class="border-0 shadow-lg">
-              <div class="flex justify-between items-center p-4 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
-                <div>
-                  <div class="font-semibold text-gray-900 dark:text-white">My Contributions</div>
-                  <div class="text-sm text-gray-600 dark:text-slate-400">Total saved</div>
-                </div>
-                <div class="text-right">
-                  <div class="text-xl font-bold text-green-600">RWF {{ getTontineSavings(tontine.id).toLocaleString() }}</div>
-                </div>
-              </div>
-            </UCard>
-            <UCard class="border-0 shadow-lg">
-              <div class="flex justify-between items-center p-4 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
-                <div>
-                  <div class="font-semibold text-gray-900 dark:text-white">Active Members</div>
-                  <div class="text-sm text-gray-600 dark:text-slate-400">Currently joined</div>
-                </div>
-                <div class="text-right">
-                  <div class="text-xl font-bold text-gray-700 dark:text-slate-300">{{ tontine.member_count || 0 }}/{{ tontine.max_members }}</div>
+      <!-- Financial Overview Charts -->
+      <div class="mb-6 sm:mb-8">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Financial Overview</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Total Saved Chart -->
+          <UCard class="border-0 shadow-lg">
+            <div class="p-6">
+              <h3 class="text-lg font-semibold text-green-600 mb-4">Total Saved</h3>
+              <div class="h-48 flex items-center justify-center">
+                <div class="relative w-32 h-32">
+                  <svg class="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
+                    <path class="text-gray-200 dark:text-slate-600" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                    <path class="text-green-600" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" :stroke-dasharray="`${Math.min((stats.totalContributions / 100000) * 100, 100)} 100`" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                  </svg>
+                  <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="text-center">
+                      <div class="text-lg font-bold text-green-600">{{ ((stats.totalContributions / 100000) * 100).toFixed(0) }}%</div>
+                      <div class="text-xs text-gray-500">of 100K</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </UCard>
-          </div>
-        </div>
-      </div>
+              <div class="text-center mt-4">
+                <div class="text-2xl font-bold text-gray-900 dark:text-white">RWF {{ stats.totalContributions.toLocaleString() }}</div>
+                <div class="text-sm text-gray-600 dark:text-slate-400">All contributions</div>
+              </div>
+            </div>
+          </UCard>
 
-      <!-- Quick Actions by Tontine -->
-      <div v-if="userTontines.length > 0" class="mb-6 sm:mb-8">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h2>
-        <div v-for="tontine in userTontines" :key="tontine.id" class="mb-6">
-          <h3 class="text-lg font-medium text-green-600 mb-3">{{ tontine.name }}</h3>
-          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-            <button @click="navigateTo(`/contributions?tontine=${tontine.id}`)" class="h-16 sm:h-20 flex flex-col items-center justify-center text-xs sm:text-sm bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-              <Icon name="i-heroicons-banknotes" class="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-gray-700 dark:text-slate-300" />
-              <span class="text-center text-gray-900 dark:text-white">Make Contribution</span>
-            </button>
-            
-            <button @click="navigateTo(`/loans?tontine=${tontine.id}`)" class="h-16 sm:h-20 flex flex-col items-center justify-center text-xs sm:text-sm bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-              <Icon name="i-heroicons-document-text" class="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-gray-700 dark:text-slate-300" />
-              <span class="text-center text-gray-900 dark:text-white">Request Loan</span>
-            </button>
-            
-            <button @click="navigateTo(`/payments?tontine=${tontine.id}`)" class="h-16 sm:h-20 flex flex-col items-center justify-center text-xs sm:text-sm bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-              <Icon name="i-heroicons-credit-card" class="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-gray-700 dark:text-slate-300" />
-              <span class="text-center text-gray-900 dark:text-white">Payment History</span>
-            </button>
-            
-            <button @click="navigateTo(`/reports?tontine=${tontine.id}`)" class="h-16 sm:h-20 flex flex-col items-center justify-center text-xs sm:text-sm bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-              <Icon name="i-heroicons-chart-bar" class="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-gray-700 dark:text-slate-300" />
-              <span class="text-center text-gray-900 dark:text-white">View Reports</span>
-            </button>
-          </div>
+          <!-- Active Tontines Chart -->
+          <UCard class="border-0 shadow-lg">
+            <div class="p-6">
+              <h3 class="text-lg font-semibold text-blue-600 mb-4">Active Tontines</h3>
+              <div class="h-48 flex items-center justify-center">
+                <div class="text-center">
+                  <div class="relative inline-block">
+                    <div class="w-24 h-24 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
+                      <div class="text-3xl font-bold text-blue-600">{{ userTontines.length }}</div>
+                    </div>
+                    <div class="absolute -top-2 -right-2 w-8 h-8 bg-gray-500 dark:bg-slate-500 rounded-full flex items-center justify-center">
+                      <Icon name="i-heroicons-check" class="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="text-center mt-4">
+                <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ userTontines.length }}</div>
+                <div class="text-sm text-gray-600 dark:text-slate-400">Currently joined</div>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Net Worth Chart -->
+          <UCard class="border-0 shadow-lg">
+            <div class="p-6">
+              <h3 class="text-lg font-semibold text-purple-600 mb-4">Net Worth</h3>
+              <div class="h-48 flex items-center justify-center">
+                <div class="w-full max-w-32">
+                  <div class="space-y-3">
+                    <!-- Savings Bar -->
+                    <div>
+                      <div class="flex justify-between text-xs mb-1">
+                        <span class="text-gray-600 dark:text-slate-400">Savings</span>
+                        <span class="text-gray-600 dark:text-slate-400">{{ stats.totalContributions.toLocaleString() }}</span>
+                      </div>
+                      <div class="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-3">
+                        <div class="bg-gray-600 dark:bg-slate-500 h-3 rounded-full" :style="{ width: stats.totalContributions > 0 ? '100%' : '0%' }"></div>
+                      </div>
+                    </div>
+                    <!-- Loans Bar -->
+                    <div>
+                      <div class="flex justify-between text-xs mb-1">
+                        <span class="text-red-600">Outstanding Loans</span>
+                        <span class="text-red-600">{{ stats.totalLoans.toLocaleString() }}</span>
+                      </div>
+                      <div class="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-3">
+                        <div class="bg-red-600 h-3 rounded-full" :style="{ width: stats.totalLoans > 0 ? Math.min((stats.totalLoans / Math.max(stats.totalContributions, 1)) * 100, 100) + '%' : '0%' }"></div>
+                      </div>
+                    </div>
+                    <!-- Loan Payments Bar -->
+                    <div>
+                      <div class="flex justify-between text-xs mb-1">
+                        <span class="text-blue-600">Loan Payments</span>
+                        <span class="text-blue-600">{{ stats.totalLoanPaid.toLocaleString() }}</span>
+                      </div>
+                      <div class="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-3">
+                        <div class="bg-blue-600 h-3 rounded-full" :style="{ width: stats.totalLoanPaid > 0 ? Math.min((stats.totalLoanPaid / Math.max(stats.totalContributions, 1)) * 100, 100) + '%' : '0%' }"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="text-center mt-4">
+                <div class="text-2xl font-bold" :class="(stats.totalContributions - stats.totalLoans) >= 0 ? 'text-gray-600 dark:text-slate-400' : 'text-red-600'">RWF {{ (stats.totalContributions - stats.totalLoans).toLocaleString() }}</div>
+                <div class="text-sm text-gray-600 dark:text-slate-400">Savings - Outstanding Loans</div>
+                <div class="text-xs text-orange-600 mt-1">Loan Requests: RWF {{ Math.round(stats.totalLoanRequested).toLocaleString() }}</div>
+              </div>
+            </div>
+          </UCard>
         </div>
       </div>
 
@@ -132,14 +173,21 @@
                   <p class="font-medium text-sm sm:text-base truncate text-gray-900 dark:text-white">Total Contributions</p>
                   <p class="text-xs sm:text-sm text-gray-600 dark:text-slate-400">All time</p>
                 </div>
-                <div class="text-green-600 font-semibold text-sm sm:text-base flex-shrink-0 ml-2">RWF {{ stats.totalContributions.toLocaleString() }}</div>
+                <div class="text-gray-600 dark:text-slate-400 font-semibold text-sm sm:text-base flex-shrink-0 ml-2">RWF {{ stats.totalContributions.toLocaleString() }}</div>
               </div>
               <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600">
                 <div class="min-w-0 flex-1">
-                  <p class="font-medium text-sm sm:text-base truncate text-gray-900 dark:text-white">Active Members</p>
-                  <p class="text-xs sm:text-sm text-gray-600 dark:text-slate-400">Currently joined</p>
+                  <p class="font-medium text-sm sm:text-base truncate text-gray-900 dark:text-white">Loan Requests</p>
+                  <p class="text-xs sm:text-sm text-gray-600 dark:text-slate-400">Total requested</p>
                 </div>
-                <div class="text-gray-700 dark:text-slate-300 font-semibold text-sm sm:text-base flex-shrink-0 ml-2">{{ stats.memberCount }}</div>
+                <div class="text-orange-600 font-semibold text-sm sm:text-base flex-shrink-0 ml-2">RWF {{ stats.totalLoanRequested.toLocaleString() }}</div>
+              </div>
+              <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600">
+                <div class="min-w-0 flex-1">
+                  <p class="font-medium text-sm sm:text-base truncate text-gray-900 dark:text-white">My Tontines</p>
+                  <p class="text-xs sm:text-sm text-gray-600 dark:text-slate-400">Joined tontines</p>
+                </div>
+                <div class="text-blue-600 font-semibold text-sm sm:text-base flex-shrink-0 ml-2">{{ userTontines.length }}</div>
               </div>
             </div>
           </div>
@@ -175,6 +223,8 @@ const stats = ref({
   totalContributions: 0,
   activeTontines: 0,
   totalLoans: 0,
+  totalLoanPaid: 0,
+  totalLoanRequested: 0,
   memberCount: 0
 })
 const loading = ref(true)
@@ -242,10 +292,24 @@ const fetchDashboardData = async () => {
     
     stats.value.activeTontines = userTontines.value.length
     
-    // Fetch user loans
+    // Fetch user loans and loan payments
     const loansResponse = await fetch(`http://localhost:8000/api/loans/user/${user.value.id}`)
     const loans = await loansResponse.json()
-    stats.value.totalLoans = loans.reduce((sum, l) => sum + parseFloat(l.amount || 0), 0)
+    
+    // Fetch loan payments to calculate actual paid amounts
+    const paymentsResponse = await fetch(`http://localhost:8000/api/payments/history/${user.value.id}`)
+    const paymentsData = await paymentsResponse.json()
+    const loanPayments = paymentsData.loanPayments || []
+    
+    // Calculate total loan amounts and total paid
+    const totalLoanAmount = loans.reduce((sum, l) => sum + parseFloat(l.amount || 0), 0)
+    const totalLoanPaid = loanPayments
+      .filter(p => p.payment_status === 'Approved')
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+    
+    stats.value.totalLoans = totalLoanAmount - totalLoanPaid // Net loan balance
+    stats.value.totalLoanPaid = totalLoanPaid // Total paid amount
+    stats.value.totalLoanRequested = totalLoanAmount // Total requested amount
     
     // Get total member count from all tontines
     try {
@@ -270,9 +334,10 @@ const fetchDashboardData = async () => {
 
 const getTontineSavings = (tontineId) => {
   const tontineContribs = contributionsByTontine.value[tontineId] || []
-  return tontineContribs
+  const total = tontineContribs
     .filter(c => c.payment_status === 'Approved')
-    .reduce((sum, c) => sum + c.amount, 0)
+    .reduce((sum, c) => sum + parseFloat(c.amount || 0), 0)
+  return total || 0
 }
 
 

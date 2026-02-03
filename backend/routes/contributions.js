@@ -1,5 +1,26 @@
 const express = require('express');
+const checkTontineStatus = require('../middleware/checkTontineStatus');
 const router = express.Router();
+
+// Get all contributions (for admin reports)
+router.get('/', async (req, res) => {
+  const db = req.app.get('db');
+
+  try {
+    const [contributions] = await db.execute(
+      `SELECT c.*, u.names as user_name, t.name as tontine_name
+       FROM contributions c 
+       JOIN users u ON c.user_id = u.id 
+       JOIN tontines t ON c.tontine_id = t.id
+       ORDER BY c.created_at DESC`
+    );
+
+    res.json(contributions);
+  } catch (error) {
+    console.error('Fetch all contributions error:', error);
+    res.status(500).json({ message: 'Failed to fetch contributions' });
+  }
+});
 
 // Get contributions for a tontine
 router.get('/tontine/:tontineId', async (req, res) => {
@@ -109,7 +130,7 @@ router.get('/missed/:userId', async (req, res) => {
 });
 
 // Submit contribution
-router.post('/', async (req, res) => {
+router.post('/', checkTontineStatus, async (req, res) => {
   const { userId, tontineId, paymentMethod, phoneNumber, user_id, tontine_id, payment_method, phone_number } = req.body;
   const db = req.app.get('db');
   const io = req.app.get('io');

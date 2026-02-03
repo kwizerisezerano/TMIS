@@ -237,12 +237,6 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Add login notification
-    await db.execute(
-      'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-      [user.id, 'Login Successful', 'Welcome back to The Future!', 'success']
-    );
-
     res.json({
       message: 'Login successful',
       token,
@@ -454,6 +448,22 @@ router.delete('/manage/users/:id', async (req, res) => {
         message: 'Failed to remove member' 
       });
     }
+  }
+});
+
+// Get all users (admin only)
+router.get('/users', async (req, res) => {
+  const db = req.app.get('db');
+
+  try {
+    const [users] = await db.execute(
+      'SELECT id, names, email, phone, role FROM users ORDER BY names'
+    );
+
+    res.json(users);
+  } catch (error) {
+    console.error('Get all users error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

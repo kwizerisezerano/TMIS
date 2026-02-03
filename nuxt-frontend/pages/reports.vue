@@ -1,275 +1,341 @@
 <template>
-  <div class="space-y-6 p-4 sm:p-6">
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-      <div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Reports</h1>
-        <p class="text-gray-600">{{ user?.role === 'admin' ? 'View overall tontine reports and member activities' : 'View your tontine activities and reports' }}</p>
+  <div class="min-h-screen bg-white dark:bg-slate-900 p-6">
+    <div class="max-w-7xl mx-auto">
+      <!-- Header -->
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
+        <div>
+          <h1 class="text-3xl font-bold text-green-600">📊 Financial Reports</h1>
+          <p class="text-gray-600 dark:text-slate-400">
+            {{ isAdmin ? 'Tontine-wide analytics and insights' : 'Your personal financial analytics' }}
+          </p>
+        </div>
+        <div class="flex gap-2" v-if="isAdmin">
+          <select v-model="selectedTontine" @change="fetchReportsData" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-white">
+            <option value="">All Tontines</option>
+            <option v-for="tontine in tontines" :key="tontine.id" :value="tontine.id">
+              {{ tontine.name }}
+            </option>
+          </select>
+          <UButton @click="exportData" color="green" variant="outline" size="sm">
+            Export Data
+          </UButton>
+        </div>
       </div>
-    </div>
 
-    <!-- Admin Reports -->
-    <div v-if="user?.role === 'admin'">
-      <!-- Overall Statistics -->
-      <UCard class="mb-6">
-        <template #header>
-          <h3 class="text-lg font-semibold">Overall Tontine Statistics</h3>
-        </template>
-        
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div class="text-2xl font-bold text-gray-700 dark:text-slate-300">{{ overallStats.totalMembers }}</div>
-            <div class="text-sm text-gray-600 dark:text-slate-400">Total Members</div>
-          </div>
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div class="text-2xl font-bold text-green-600">{{ formatCurrency(overallStats.totalContributions) }}</div>
-            <div class="text-sm text-gray-600 dark:text-slate-400">Total Contributions</div>
-          </div>
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div class="text-2xl font-bold text-gray-700 dark:text-slate-300">{{ formatCurrency(overallStats.totalLoans) }}</div>
-            <div class="text-sm text-gray-600 dark:text-slate-400">Total Loans</div>
-          </div>
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div class="text-2xl font-bold text-gray-700 dark:text-slate-300">{{ overallStats.activeMembers }}</div>
-            <div class="text-sm text-gray-600 dark:text-slate-400">Active Members</div>
-          </div>
-        </div>
-      </UCard>
-
-      <!-- Member Activities -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold">Member Activities</h3>
-        </template>
-        
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Member</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contributions</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loans</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Activity</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="member in memberActivities" :key="member.id">
-                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {{ member.names }}
-                </td>
-                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ formatCurrency(member.total_contributions) }}
-                </td>
-                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ formatCurrency(member.total_loans) }}
-                </td>
-                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ formatDate(member.last_activity) }}
-                </td>
-                <td class="px-4 py-4 whitespace-nowrap">
-                  <span :class="member.email_verified ? 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
-                    {{ member.email_verified ? 'Active' : 'Pending' }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </UCard>
-    </div>
-
-    <!-- Member Reports -->
-    <div v-else>
-      <!-- Personal Statistics -->
-      <UCard class="mb-6">
-        <template #header>
-          <h3 class="text-lg font-semibold">Your Statistics</h3>
-        </template>
-        
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div class="text-2xl font-bold text-green-600">{{ formatCurrency(personalStats.totalContributions) }}</div>
-            <div class="text-sm text-gray-600 dark:text-slate-400">Total Contributions</div>
-          </div>
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div class="text-2xl font-bold text-gray-700 dark:text-slate-300">{{ formatCurrency(personalStats.totalLoans) }}</div>
-            <div class="text-sm text-gray-600 dark:text-slate-400">Total Loans</div>
-          </div>
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div class="text-2xl font-bold text-gray-700 dark:text-slate-300">{{ personalStats.contributionCount }}</div>
-            <div class="text-sm text-gray-600 dark:text-slate-400">Contributions Made</div>
-          </div>
-        </div>
-      </UCard>
-
-      <!-- Recent Activities -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold">Your Recent Activities</h3>
-        </template>
-        
-        <div class="space-y-4">
-          <div v-for="activity in recentActivities" :key="activity.id" class="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="activity.type === 'contribution' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'">
-                <Icon :name="activity.type === 'contribution' ? 'i-heroicons-banknotes' : 'i-heroicons-credit-card'" class="w-4 h-4" />
-              </div>
-              <div>
-                <div class="font-medium text-gray-900">{{ activity.description }}</div>
-                <div class="text-sm text-gray-500">{{ formatDate(activity.date) }}</div>
-              </div>
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <UCard class="border-0 shadow-lg">
+          <div class="p-6 text-center">
+            <div class="text-3xl font-bold text-green-600">RWF {{ stats.totalContributions.toLocaleString() }}</div>
+            <div class="text-sm text-gray-600 dark:text-slate-400 mt-1">
+              {{ isAdmin ? 'Total Contributions' : 'My Contributions' }}
             </div>
-            <div class="text-right">
-              <div class="font-medium text-gray-900">{{ formatCurrency(activity.amount) }}</div>
-              <UBadge :color="activity.status === 'Completed' ? 'green' : activity.status === 'Pending' ? 'yellow' : 'red'" size="xs">
-                {{ activity.status }}
-              </UBadge>
+            <div class="text-xs text-green-600 mt-2">{{ stats.contributionCount }} transactions</div>
+          </div>
+        </UCard>
+        
+        <UCard class="border-0 shadow-lg">
+          <div class="p-6 text-center">
+            <div class="text-3xl font-bold text-orange-600">RWF {{ stats.totalLoanRequested.toLocaleString() }}</div>
+            <div class="text-sm text-gray-600 dark:text-slate-400 mt-1">
+              {{ isAdmin ? 'Loans Requested' : 'My Loan Requests' }}
+            </div>
+            <div class="text-xs text-orange-600 mt-2">{{ stats.activeLoans }} active</div>
+          </div>
+        </UCard>
+        
+        <UCard class="border-0 shadow-lg">
+          <div class="p-6 text-center">
+            <div class="text-3xl font-bold text-blue-600">RWF {{ stats.totalLoanPaid.toLocaleString() }}</div>
+            <div class="text-sm text-gray-600 dark:text-slate-400 mt-1">
+              {{ isAdmin ? 'Loan Payments' : 'My Loan Payments' }}
+            </div>
+            <div class="text-xs text-blue-600 mt-2">{{ stats.paymentRate }}% repayment rate</div>
+          </div>
+        </UCard>
+        
+        <UCard class="border-0 shadow-lg">
+          <div class="p-6 text-center">
+            <div class="text-3xl font-bold text-purple-600">{{ isAdmin ? stats.totalMembers : userTontines.length }}</div>
+            <div class="text-sm text-gray-600 dark:text-slate-400 mt-1">
+              {{ isAdmin ? 'Total Members' : 'My Tontines' }}
+            </div>
+            <div class="text-xs text-purple-600 mt-2">{{ isAdmin ? tontines.length + ' tontines' : 'Active memberships' }}</div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- Detailed Tables -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Recent Contributions -->
+        <UCard class="border-0 shadow-lg">
+          <div class="p-6">
+            <h3 class="text-lg font-semibold text-green-600 mb-4">Recent Contributions</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 dark:border-slate-600">
+                    <th class="text-left py-2 text-gray-600 dark:text-slate-400">Date</th>
+                    <th class="text-left py-2 text-gray-600 dark:text-slate-400" v-if="isAdmin">Member</th>
+                    <th class="text-left py-2 text-gray-600 dark:text-slate-400" v-else>Purpose</th>
+                    <th class="text-right py-2 text-gray-600 dark:text-slate-400">Amount</th>
+                    <th class="text-center py-2 text-gray-600 dark:text-slate-400">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="contribution in recentContributions" :key="contribution.id" class="border-b border-gray-100 dark:border-slate-700">
+                    <td class="py-2 text-gray-900 dark:text-white">{{ formatDate(contribution.created_at) }}</td>
+                    <td class="py-2 text-gray-900 dark:text-white">{{ isAdmin ? (contribution.user_name || 'N/A') : 'Monthly Contribution' }}</td>
+                    <td class="py-2 text-right font-semibold text-green-600">RWF {{ contribution.amount.toLocaleString() }}</td>
+                    <td class="py-2 text-center">
+                      <UBadge :color="getStatusColor(contribution.payment_status)" size="xs">
+                        {{ contribution.payment_status }}
+                      </UBadge>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-      </UCard>
+        </UCard>
+
+        <!-- Recent Loans -->
+        <UCard class="border-0 shadow-lg">
+          <div class="p-6">
+            <h3 class="text-lg font-semibold text-orange-600 mb-4">Recent Loan Requests</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 dark:border-slate-600">
+                    <th class="text-left py-2 text-gray-600 dark:text-slate-400">Date</th>
+                    <th class="text-left py-2 text-gray-600 dark:text-slate-400" v-if="isAdmin">Member</th>
+                    <th class="text-left py-2 text-gray-600 dark:text-slate-400" v-else>Purpose</th>
+                    <th class="text-right py-2 text-gray-600 dark:text-slate-400">Amount</th>
+                    <th class="text-center py-2 text-gray-600 dark:text-slate-400">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="loan in recentLoans" :key="loan.id" class="border-b border-gray-100 dark:border-slate-700">
+                    <td class="py-2 text-gray-900 dark:text-white">{{ formatDate(loan.created_at) }}</td>
+                    <td class="py-2 text-gray-900 dark:text-white">{{ isAdmin ? (loan.user_name || 'N/A') : 'Loan Request' }}</td>
+                    <td class="py-2 text-right font-semibold text-orange-600">RWF {{ loan.amount.toLocaleString() }}</td>
+                    <td class="py-2 text-center">
+                      <UBadge :color="getStatusColor(loan.status)" size="xs">
+                        {{ loan.status }}
+                      </UBadge>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </UCard>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-definePageMeta({
-  layout: 'default'
+const stats = ref({
+  totalContributions: 0,
+  totalLoanRequested: 0,
+  totalLoanPaid: 0,
+  contributionCount: 0,
+  activeLoans: 0,
+  paymentRate: 0,
+  totalMembers: 0
 })
 
-const { api } = useApi()
+const recentContributions = ref([])
+const recentLoans = ref([])
 const user = ref(null)
-const overallStats = ref({
-  totalMembers: 0,
-  totalContributions: 0,
-  totalLoans: 0,
-  activeMembers: 0
-})
-const memberActivities = ref([])
-const personalStats = ref({
-  totalContributions: 0,
-  totalLoans: 0,
-  contributionCount: 0
-})
-const recentActivities = ref([])
+const tontines = ref([])
+const userTontines = ref([])
+const selectedTontine = ref('')
+const isAdmin = computed(() => user.value?.role === 'admin' || user.value?.role === 'president')
 
 onMounted(async () => {
   if (process.client) {
     const userData = localStorage.getItem('user')
     if (userData) {
       user.value = JSON.parse(userData)
-      if (user.value.role === 'admin') {
-        await fetchOverallStats()
-        await fetchMemberActivities()
-      } else {
-        await fetchPersonalStats()
-        await fetchRecentActivities()
+      if (isAdmin.value) {
+        await fetchTontines()
+        
+        // Check for tontine query parameter
+        const route = useRoute()
+        if (route.query.tontine) {
+          selectedTontine.value = route.query.tontine
+        }
       }
+      await fetchReportsData()
+    } else {
+      await navigateTo('/login')
     }
   }
 })
 
-const fetchOverallStats = async () => {
+const fetchTontines = async () => {
   try {
-    const [members, contributions, loans] = await Promise.all([
-      api('/tontines/1/members'),
-      api('/contributions/tontine/1'),
-      api('/loans/tontine/1')
-    ])
-    
-    overallStats.value = {
-      totalMembers: members.length,
-      totalContributions: contributions.reduce((sum, c) => sum + (c.amount || 0), 0),
-      totalLoans: loans.reduce((sum, l) => sum + (l.amount || 0), 0),
-      activeMembers: members.filter(m => m.email_verified).length
-    }
+    const response = await fetch('http://localhost:8000/api/tontines')
+    tontines.value = await response.json()
   } catch (error) {
-    console.error('Failed to fetch overall stats:', error)
+    console.error('Failed to fetch tontines:', error)
   }
 }
 
-const fetchMemberActivities = async () => {
+const fetchReportsData = async () => {
   try {
-    const members = await api('/tontines/1/members')
-    const contributions = await api('/contributions/tontine/1')
-    const loans = await api('/loans/tontine/1')
+    if (isAdmin.value) {
+      await fetchAdminReports()
+    } else {
+      await fetchUserReports()
+    }
+  } catch (error) {
+    console.error('Failed to fetch reports data:', error)
+  }
+}
+
+const fetchAdminReports = async () => {
+  try {
+    const contributionsResponse = await fetch('http://localhost:8000/api/contributions')
+    const allContributions = await contributionsResponse.json()
     
-    memberActivities.value = members.map(member => {
-      const memberContributions = contributions.filter(c => c.user_id === member.id)
-      const memberLoans = loans.filter(l => l.user_id === member.id)
-      
-      return {
-        ...member,
-        total_contributions: memberContributions.reduce((sum, c) => sum + (c.amount || 0), 0),
-        total_loans: memberLoans.reduce((sum, l) => sum + (l.amount || 0), 0),
-        last_activity: memberContributions.length > 0 ? memberContributions[0].contribution_date : member.created_at
+    const loansResponse = await fetch('http://localhost:8000/api/loans')
+    const allLoans = await loansResponse.json()
+    
+    const loanPaymentsResponse = await fetch('http://localhost:8000/api/payments/loan-payments/all')
+    const allLoanPayments = await loanPaymentsResponse.json()
+    
+    const contributions = selectedTontine.value 
+      ? allContributions.filter(c => c.tontine_id == selectedTontine.value)
+      : allContributions
+    
+    const loans = selectedTontine.value
+      ? allLoans.filter(l => l.tontine_id == selectedTontine.value)
+      : allLoans
+    
+    const loanPayments = selectedTontine.value
+      ? allLoanPayments.filter(p => p.tontine_id == selectedTontine.value)
+      : allLoanPayments
+    
+    stats.value.totalContributions = contributions
+      .filter(c => c.payment_status === 'Approved')
+      .reduce((sum, c) => sum + parseFloat(c.amount || 0), 0)
+    
+    stats.value.contributionCount = contributions.length
+    stats.value.totalLoanRequested = loans.reduce((sum, l) => sum + parseFloat(l.amount || 0), 0)
+    stats.value.activeLoans = loans.filter(l => l.status === 'Approved').length
+    
+    stats.value.totalLoanPaid = loanPayments
+      .filter(p => p.payment_status === 'Approved')
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+    
+    stats.value.paymentRate = stats.value.totalLoanRequested > 0 
+      ? Math.round((stats.value.totalLoanPaid / stats.value.totalLoanRequested) * 100) 
+      : 0
+    
+    if (selectedTontine.value) {
+      const tontineResponse = await fetch(`http://localhost:8000/api/tontines/${selectedTontine.value}`)
+      const tontineData = await tontineResponse.json()
+      stats.value.totalMembers = tontineData.members?.length || 0
+    } else {
+      let totalMembers = 0
+      for (const tontine of tontines.value) {
+        const tontineResponse = await fetch(`http://localhost:8000/api/tontines/${tontine.id}`)
+        const tontineData = await tontineResponse.json()
+        totalMembers += tontineData.members?.length || 0
       }
-    })
-  } catch (error) {
-    console.error('Failed to fetch member activities:', error)
-  }
-}
-
-const fetchPersonalStats = async () => {
-  try {
-    const [contributions, loans] = await Promise.all([
-      api(`/contributions/user/${user.value.id}`),
-      api(`/loans/user/${user.value.id}`)
-    ])
-    
-    personalStats.value = {
-      totalContributions: contributions.reduce((sum, c) => sum + (c.amount || 0), 0),
-      totalLoans: loans.reduce((sum, l) => sum + (l.amount || 0), 0),
-      contributionCount: contributions.length
+      stats.value.totalMembers = totalMembers
     }
+    
+    recentContributions.value = contributions.slice(0, 5)
+    recentLoans.value = loans.slice(0, 5)
   } catch (error) {
-    console.error('Failed to fetch personal stats:', error)
+    console.error('Failed to fetch admin reports:', error)
   }
 }
 
-const fetchRecentActivities = async () => {
+const fetchUserReports = async () => {
   try {
-    const [contributions, loans] = await Promise.all([
-      api(`/contributions/user/${user.value.id}`),
-      api(`/loans/user/${user.value.id}`)
-    ])
+    const contributionsResponse = await fetch(`http://localhost:8000/api/contributions/user/${user.value.id}`)
+    const contributions = await contributionsResponse.json()
     
-    const activities = [
-      ...contributions.map(c => ({
-        id: `c-${c.id}`,
-        type: 'contribution',
-        description: 'Contribution Payment',
-        amount: c.amount,
-        date: c.contribution_date,
-        status: c.payment_status
-      })),
-      ...loans.map(l => ({
-        id: `l-${l.id}`,
-        type: 'loan',
-        description: 'Loan Request',
-        amount: l.amount,
-        date: l.created_at,
-        status: l.status
-      }))
-    ]
+    const loansResponse = await fetch(`http://localhost:8000/api/loans/user/${user.value.id}`)
+    const loans = await loansResponse.json()
     
-    recentActivities.value = activities
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 10)
+    const paymentsResponse = await fetch(`http://localhost:8000/api/payments/history/${user.value.id}`)
+    const paymentsData = await paymentsResponse.json()
+    
+    stats.value.totalContributions = contributions
+      .filter(c => c.payment_status === 'Approved')
+      .reduce((sum, c) => sum + parseFloat(c.amount || 0), 0)
+    
+    stats.value.contributionCount = contributions.length
+    stats.value.totalLoanRequested = loans.reduce((sum, l) => sum + parseFloat(l.amount || 0), 0)
+    stats.value.activeLoans = loans.filter(l => l.status === 'Approved').length
+    
+    const loanPayments = paymentsData.loanPayments || []
+    stats.value.totalLoanPaid = loanPayments
+      .filter(p => p.payment_status === 'Approved')
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+    
+    stats.value.paymentRate = stats.value.totalLoanRequested > 0 
+      ? Math.round((stats.value.totalLoanPaid / stats.value.totalLoanRequested) * 100) 
+      : 0
+    
+    recentContributions.value = contributions.slice(0, 5)
+    recentLoans.value = loans.slice(0, 5)
+    
+    const tontinesResponse = await fetch(`http://localhost:8000/api/tontines/user/${user.value.id}`)
+    userTontines.value = await tontinesResponse.json()
   } catch (error) {
-    console.error('Failed to fetch recent activities:', error)
+    console.error('Failed to fetch user reports:', error)
   }
 }
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-RW', {
-    style: 'currency',
-    currency: 'RWF'
-  }).format(amount || 0)
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
 }
 
-const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('en-RW')
+const getStatusColor = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'approved': return 'green'
+    case 'pending': return 'yellow'
+    case 'rejected': return 'red'
+    default: return 'gray'
+  }
 }
+
+const exportData = () => {
+  const data = recentContributions.value.concat(recentLoans.value)
+  const headers = ['Date', 'Type', 'Amount', 'Status']
+  
+  let csv = headers.join(',') + '\n'
+  data.forEach(item => {
+    const row = [
+      formatDate(item.created_at),
+      item.tontine_name ? 'Contribution' : 'Loan',
+      item.amount,
+      item.payment_status || item.status
+    ]
+    csv += row.join(',') + '\n'
+  })
+  
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `reports_${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  window.URL.revokeObjectURL(url)
+}
+
+definePageMeta({
+  layout: 'default'
+})
 </script>

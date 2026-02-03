@@ -212,7 +212,7 @@ async function setupDatabase() {
     }
     console.log('The Future leadership members created');
 
-    // Insert default tontine "The Future"
+    // Insert default tontine "The Future" and add all members
     const [tontineResult] = await connection.execute(
       `INSERT INTO tontines (name, description, contribution_amount, contribution_frequency, 
        max_members, creator_id, start_date, status, created_at) 
@@ -228,7 +228,19 @@ async function setupDatabase() {
         'active'
       ]
     );
+    const tontineId = tontineResult.insertId;
     console.log('Default tontine "The Future" created');
+
+    // Add all leadership members to the tontine
+    const [allUsers] = await connection.execute('SELECT id FROM users');
+    for (const user of allUsers) {
+      await connection.execute(
+        `INSERT INTO tontine_members (tontine_id, user_id, joined_at, status) 
+         VALUES (?, ?, NOW(), 'approved')`,
+        [tontineId, user.id]
+      );
+    }
+    console.log('All members added to The Future tontine');
 
     console.log('✅ Database setup completed successfully!');
 

@@ -6,7 +6,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
     }
     
     const user = JSON.parse(userData)
-    if (user.role !== 'admin') {
+    if (user.role !== 'admin' && user.role !== 'president') {
       throw createError({
         statusCode: 403,
         statusMessage: 'Access denied. Admin privileges required.'

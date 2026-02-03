@@ -69,12 +69,26 @@ router.post('/contribution', async (req, res) => {
         [userId, tontineId, amount, paymentMethod, transactionRef, paymentStatus]
       );
 
+      // Add notification for successful contribution
+      if (paymentStatus === 'Approved') {
+        await db.execute(
+          'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+          [userId, 'Contribution Successful', `Your contribution of RWF ${amount.toLocaleString()} has been approved successfully.`, 'success']
+        );
+      }
+
       io.to(`tontine-${tontineId}`).emit('contribution-received', {
         userId,
         amount,
         contributionId: result.insertId,
         status: paymentStatus,
         timestamp: new Date()
+      });
+
+      // Emit refresh event for auto-refresh
+      io.to(`user-${userId}`).emit('auto-refresh', {
+        type: 'contribution',
+        message: 'Contribution processed - refreshing data'
       });
 
       res.json({
@@ -100,9 +114,24 @@ router.post('/contribution', async (req, res) => {
 
 // Process loan payment
 router.post('/loan-payment', async (req, res) => {
-  const { loanId, userId, paymentAmount, paymentMethod, phoneNumber } = req.body;
+  const { loanId, userId, paymentAmount, paymentMethod, paymentData } = req.body;
   const db = req.app.get('db');
   const io = req.app.get('io');
+
+  // Validate required fields
+  if (!loanId || !userId || !paymentAmount || !paymentMethod) {
+    return res.status(400).json({ 
+      success: false,
+      message: 'Missing required fields: loanId, userId, paymentAmount, paymentMethod' 
+    });
+  }
+  
+  if (paymentMethod === 'mobile_money' && (!paymentData || !paymentData.phone)) {
+    return res.status(400).json({ 
+      success: false,
+      message: 'Phone number required for mobile money payments' 
+    });
+  }
 
   try {
     // Get loan details
@@ -135,77 +164,151 @@ router.post('/loan-payment', async (req, res) => {
       });
     }
 
-    const transactionRef = generateTransactionRef();
-    let paymentStatus = 'Pending';
-    let lanariTransactionId = null;
+    let paymentResult = { success: true }; // Default success for testing
+    let transactionRef = generateTransactionRef();
 
-    // Process mobile money payment with Lanari
-    if (paymentMethod === 'mobile_money') {
-      try {
-        const paymentData = { 
-          phone: phoneNumber, 
-          description: `Loan payment for loan #${loanId}` 
-        };
-        const paymentResult = await processMobileMoneyPayment(paymentData, paymentAmount, io, userId, loan[0].tontine_id, db, transactionRef);
-        
-        if (paymentResult.success) {
-          paymentStatus = paymentResult.lanariSuccess ? 'Approved' : 'Pending';
-          lanariTransactionId = paymentResult.transactionId;
-        } else {
-          return res.status(400).json({ 
-            message: 'Payment processing failed', 
-            error: paymentResult.error 
-          });
-        }
-      } catch (lanariError) {
-        console.error('Lanari loan payment error:', lanariError.message);
-        return res.status(500).json({ 
-          message: 'Payment service unavailable', 
-          error: lanariError.message 
-        });
+    // Process payment based on method
+    switch (paymentMethod) {
+      case 'mobile_money':
+        paymentResult = await processLoanMobileMoneyPayment(paymentData, paymentAmount, io, userId, loan[0].tontine_id, db, transactionRef);
+        break;
+      default:
+        paymentResult = { success: true, transactionId: `TEST_${Date.now()}` };
+    }
+
+    if (paymentResult.success) {
+      const paymentStatus = paymentResult.lanariSuccess ? 'Approved' : (paymentMethod === 'mobile_money' ? 'Pending' : 'Approved');
+
+      // Record loan payment
+      const [result] = await db.execute(
+        `INSERT INTO loan_payments (loan_id, user_id, amount, payment_method, 
+         payment_status, transaction_ref, payment_date) 
+         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [loanId, userId, paymentAmount, paymentMethod, paymentStatus, transactionRef]
+      );
+
+      // Add notification for successful loan payment
+      if (paymentStatus === 'Approved') {
+        await db.execute(
+          'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+          [userId, 'Loan Payment Successful', `Your loan payment of RWF ${paymentAmount.toLocaleString()} has been processed successfully.`, 'success']
+        );
       }
+
+      // Emit real-time update
+      io.to(`tontine-${loan[0].tontine_id}`).emit('loan-payment-submitted', {
+        loanId,
+        userId,
+        paymentAmount,
+        paymentStatus,
+        transactionRef,
+        timestamp: new Date()
+      });
+
+      // Emit refresh event for auto-refresh
+      io.to(`user-${userId}`).emit('auto-refresh', {
+        type: 'loan-payment',
+        message: 'Loan payment processed - refreshing data'
+      });
+
+      res.status(201).json({
+        success: true,
+        message: paymentStatus === 'Approved' ? 'Payment completed successfully' : 'Payment initiated - awaiting confirmation',
+        paymentId: result.insertId,
+        transactionRef,
+        paymentStatus,
+        remainingAmount: (remainingAmount - parseFloat(paymentAmount)).toFixed(2)
+      });
     } else {
-      paymentStatus = 'Approved'; // Other payment methods auto-approved
+      res.status(400).json({
+        success: false,
+        message: 'Payment failed',
+        error: paymentResult.error
+      });
     }
-
-    // Record loan payment
-    const [result] = await db.execute(
-      `INSERT INTO loan_payments (loan_id, user_id, amount, payment_method, 
-       payment_status, transaction_ref, payment_date) 
-       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [loanId, userId, paymentAmount, paymentMethod, paymentStatus, transactionRef]
-    );
-
-    // Start Lanari status checking for mobile money
-    if (paymentMethod === 'mobile_money' && lanariTransactionId) {
-      setTimeout(() => {
-        checkLoanPaymentStatus(lanariTransactionId, transactionRef, db, io, loan[0].tontine_id, userId);
-      }, 5000);
-    }
-
-    // Emit real-time update
-    io.to(`tontine-${loan[0].tontine_id}`).emit('loan-payment-submitted', {
-      loanId,
-      userId,
-      paymentAmount,
-      paymentStatus,
-      transactionRef,
-      timestamp: new Date()
-    });
-
-    res.status(201).json({
-      message: 'Loan payment submitted successfully',
-      paymentId: result.insertId,
-      transactionRef,
-      paymentStatus,
-      remainingAmount: (remainingAmount - parseFloat(paymentAmount)).toFixed(2)
-    });
 
   } catch (error) {
     console.error('Loan payment error:', error);
     res.status(500).json({ message: 'Failed to process loan payment' });
   }
 });
+
+// Lanari payment processing for loan payments with automatic status checking
+async function processLoanMobileMoneyPayment(paymentData, amount, io, userId, tontineId, db, transactionRef) {
+  try {
+    if (io && tontineId) {
+      io.to(`tontine-${tontineId}`).emit('payment-status', {
+        userId,
+        status: 'initiated',
+        message: 'Loan payment request sent to Lanari Pay',
+        timestamp: new Date()
+      });
+    }
+
+    const lanariPayload = {
+      api_key: '5a257d53460ade03b19daf2ed8195938d0586ff6297e8fc5ab840958200ceeb8',
+      api_secret: '1b0903514c0d2192a3b0f9e57857807287ef2da754396a5c63d7d586eba4c4f2b8929a4e069f65d27aec05a3d3b0a47226e432236076ea6e0e9fde51a85c164a',
+      amount: parseInt(amount),
+      customer_phone: paymentData.phone,
+      currency: 'RWF',
+      description: (paymentData.description || 'Loan payment').replace(/[^a-zA-Z0-9\s]/g, '')
+    };
+
+    console.log('Sending loan payment to Lanari:', lanariPayload);
+
+    const response = await axios.post('https://www.lanari.rw/lanari_pay/api/payment/process.php', lanariPayload, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 60000
+    });
+
+    console.log('Lanari loan payment response:', response.data);
+    const result = response.data;
+    
+    const isLanariSuccess = result.success || 
+                           result.status === 'success' || 
+                           (result.transaction_id && result.transaction_id !== 'pending' && result.transaction_id !== 'failed') ||
+                           (result.message && result.message.toLowerCase().includes('successfully')) ||
+                           (result.message && result.message.toLowerCase().includes('confirmed')) ||
+                           (result.message && result.message.toLowerCase().includes('completed'));
+    
+    // If successful, start automatic status checking for loan payments
+    if (isLanariSuccess) {
+      setTimeout(() => checkLoanPaymentStatus(result.transaction_id, transactionRef, db, io, tontineId, userId, 0), 10000);
+    }
+    
+    if (io && tontineId) {
+      io.to(`tontine-${tontineId}`).emit('payment-status', {
+        userId,
+        status: isLanariSuccess ? 'completed' : 'failed',
+        message: result.message || (isLanariSuccess ? 'Loan payment completed successfully' : 'Loan payment failed'),
+        transactionId: result.transaction_id,
+        timestamp: new Date()
+      });
+    }
+    
+    return {
+      success: true,
+      lanariSuccess: isLanariSuccess,
+      transactionId: result.transaction_id || `LANARI_${Date.now()}`,
+      error: !isLanariSuccess ? result.message : null
+    };
+  } catch (error) {
+    console.log('Lanari loan payment error:', error.message);
+    if (io && tontineId) {
+      io.to(`tontine-${tontineId}`).emit('payment-status', {
+        userId,
+        status: 'error',
+        message: `Loan payment error: ${error.message}`,
+        timestamp: new Date()
+      });
+    }
+    
+    return {
+      success: false,
+      error: error.response?.data ? JSON.stringify(error.response.data) : error.message
+    };
+  }
+}
 
 // Lanari payment processing with automatic status checking
 async function processMobileMoneyPayment(paymentData, amount, io, userId, tontineId, db, transactionRef) {
@@ -219,25 +322,18 @@ async function processMobileMoneyPayment(paymentData, amount, io, userId, tontin
       });
     }
 
-    console.log('Sending to Lanari:', {
-      amount,
-      phone: paymentData.phone,
-      description: paymentData.description,
-      api_key: '5a257d53460ade03b19daf2ed8195938d0586ff6297e8fc5ab840958200ceeb8',
-      customer_phone: paymentData.phone,
-      currency: 'RWF',
-      payout_numbers: [{ tel: '0790989830', percentage: 100 }]
-    });
-
-    const response = await axios.post('https://www.lanari.rw/lanari_pay/api/payment/process.php', {
+    const lanariPayload = {
       api_key: '5a257d53460ade03b19daf2ed8195938d0586ff6297e8fc5ab840958200ceeb8',
       api_secret: '1b0903514c0d2192a3b0f9e57857807287ef2da754396a5c63d7d586eba4c4f2b8929a4e069f65d27aec05a3d3b0a47226e432236076ea6e0e9fde51a85c164a',
-      amount: amount,
+      amount: parseInt(amount),
       customer_phone: paymentData.phone,
       currency: 'RWF',
-      description: paymentData.description || 'Tontine payment',
-      payout_numbers: [{ tel: '0790989830', percentage: 100 }]
-    }, {
+      description: (paymentData.description || 'Tontine payment').replace(/[^a-zA-Z0-9\s]/g, '')
+    };
+
+    console.log('Sending to Lanari:', lanariPayload);
+
+    const response = await axios.post('https://www.lanari.rw/lanari_pay/api/payment/process.php', lanariPayload, {
       headers: { 'Content-Type': 'application/json' },
       timeout: 60000
     });
@@ -256,7 +352,7 @@ async function processMobileMoneyPayment(paymentData, amount, io, userId, tontin
     // If successful, start automatic status checking immediately and repeatedly
     if (isLanariSuccess) {
       // Check status after 10 seconds, then every 30 seconds for up to 5 minutes
-      setTimeout(() => checkPaymentStatus(result.transaction_id, transactionRef, db, io, tontineId, userId, 0), 10000);
+      setTimeout(() => checkLoanPaymentStatus(result.transaction_id, transactionRef, db, io, tontineId, userId, 0), 10000);
     }
     
     if (io && tontineId) {
@@ -329,6 +425,12 @@ function checkPaymentStatus(lanariTransactionId, transactionRef, db, io, tontine
         await db.execute(
           'UPDATE contributions SET payment_status = "Approved" WHERE transaction_ref = ?',
           [transactionRef]
+        );
+
+        // Add success notification
+        await db.execute(
+          'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+          [userId, 'Contribution Successful', `Your contribution of RWF ${contribution[0].amount.toLocaleString()} has been approved successfully.`, 'success']
         );
 
         // Emit status update
@@ -411,6 +513,12 @@ function checkLoanPaymentStatus(lanariTransactionId, transactionRef, db, io, ton
           [transactionRef]
         );
 
+        // Add success notification
+        await db.execute(
+          'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+          [userId, 'Loan Payment Successful', `Your loan payment of RWF ${loanPayment[0].amount.toLocaleString()} has been processed successfully.`, 'success']
+        );
+
         io.to(`tontine-${tontineId}`).emit('loan-payment-status-updated', {
           userId,
           paymentId: loanPayment[0].id,
@@ -473,13 +581,13 @@ router.get('/history/:userId', async (req, res) => {
       [userId]
     );
 
-    // Get approved loan payments
+    // Get approved loan payments with real-time data
     const [loanPayments] = await db.execute(
-      `SELECT lp.*, lr.amount, t.name as tontine_name 
+      `SELECT lp.*, lr.tontine_id, t.name as tontine_name 
        FROM loan_payments lp 
        JOIN loan_requests lr ON lp.loan_id = lr.id 
        JOIN tontines t ON lr.tontine_id = t.id 
-       WHERE lp.user_id = ? AND lp.payment_status = 'Approved'
+       WHERE lp.user_id = ?
        ORDER BY lp.payment_date DESC`,
       [userId]
     );
@@ -629,6 +737,26 @@ router.post('/update-status', async (req, res) => {
   } catch (error) {
     console.error('Update status error:', error);
     res.status(500).json({ success: false, message: 'Failed to update status' });
+  }
+});
+
+// Get all loan payments (admin only)
+router.get('/loan-payments/all', async (req, res) => {
+  const db = req.app.get('db');
+
+  try {
+    const [loanPayments] = await db.execute(
+      `SELECT lp.*, u.names as user_name, lr.tontine_id
+       FROM loan_payments lp 
+       JOIN users u ON lp.user_id = u.id 
+       JOIN loan_requests lr ON lp.loan_id = lr.id
+       ORDER BY lp.payment_date DESC`
+    );
+
+    res.json(loanPayments);
+  } catch (error) {
+    console.error('Fetch all loan payments error:', error);
+    res.status(500).json({ message: 'Failed to fetch loan payments' });
   }
 });
 

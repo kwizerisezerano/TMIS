@@ -1,5 +1,26 @@
 const express = require('express');
+const checkTontineStatus = require('../middleware/checkTontineStatus');
 const router = express.Router();
+
+// Get all loan requests (for admin reports)
+router.get('/', async (req, res) => {
+  const db = req.app.get('db');
+
+  try {
+    const [loans] = await db.execute(
+      `SELECT lr.*, u.names as user_name, t.name as tontine_name
+       FROM loan_requests lr 
+       JOIN users u ON lr.user_id = u.id 
+       JOIN tontines t ON lr.tontine_id = t.id
+       ORDER BY lr.created_at DESC`
+    );
+
+    res.json(loans);
+  } catch (error) {
+    console.error('Fetch all loans error:', error);
+    res.status(500).json({ message: 'Failed to fetch loans' });
+  }
+});
 
 // Get loan requests for a tontine
 router.get('/tontine/:tontineId', async (req, res) => {
@@ -82,7 +103,7 @@ router.get('/user/:userId', async (req, res) => {
 });
 
 // Submit loan request (max 2/3 of share, 1.7% monthly interest)
-router.post('/', async (req, res) => {
+router.post('/', checkTontineStatus, async (req, res) => {
   const {
     userId,
     tontineId,
@@ -167,6 +188,12 @@ router.post('/', async (req, res) => {
       [finalUserId, finalTontineId, finalLoanAmount, interestRate, totalAmount, repaymentPeriod, userPhoneNumber]
     );
 
+    // Add notification for loan request submission
+    await db.execute(
+      'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+      [finalUserId, 'Loan Request Submitted', `Your loan request of RWF ${finalLoanAmount.toLocaleString()} has been submitted successfully and is under review.`, 'info']
+    );
+
     // Send email notification to user about loan approval
     if (userPhoneNumber) {
       try {
@@ -184,6 +211,12 @@ router.post('/', async (req, res) => {
         [result.insertId]
       );
 
+      // Add approval notification
+      await db.execute(
+        'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+        [finalUserId, 'Loan Approved', `Your loan request of RWF ${finalLoanAmount.toLocaleString()} has been approved successfully.`, 'success']
+      );
+
       // Send email notification about loan approval (no payment disbursement)
       try {
         await sendLoanApprovalEmail(userPhoneNumber, finalLoanAmount, result.insertId, db);
@@ -199,6 +232,12 @@ router.post('/', async (req, res) => {
         userId: finalUserId,
         amount: finalLoanAmount,
         timestamp: new Date()
+      });
+
+      // Emit refresh event for auto-refresh
+      io.to(`user-${finalUserId}`).emit('auto-refresh', {
+        type: 'loan-request',
+        message: 'Loan request processed - refreshing data'
       });
     }
 

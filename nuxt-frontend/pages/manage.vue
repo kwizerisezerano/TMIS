@@ -43,6 +43,13 @@
         >
           Payments
         </button>
+        <button 
+          @click="activeTab = 'tontines'"
+          :class="activeTab === 'tontines' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          class="py-2 px-1 border-b-2 font-medium text-sm transition-colors"
+        >
+          Tontines
+        </button>
       </nav>
     </div>
 
@@ -292,6 +299,62 @@
       </UCard>
     </div>
 
+    <!-- Tontines Tab -->
+    <div v-if="activeTab === 'tontines'">
+      <UCard>
+        <template #header>
+          <h3 class="text-lg font-semibold">Tontines Management</h3>
+        </template>
+
+        <div v-if="loading" class="text-center py-8">
+          <div class="text-gray-500">Loading tontines...</div>
+        </div>
+
+        <div v-else class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Members</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <tr v-for="tontine in tontines" :key="tontine.id">
+                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {{ tontine.name }}
+                </td>
+                <td class="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">
+                  {{ tontine.description }}
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {{ tontine.member_count || 0 }}/{{ tontine.max_members }}
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <UBadge :color="tontine.status === 'active' ? 'green' : tontine.status === 'inactive' ? 'yellow' : 'gray'" size="xs">
+                    {{ tontine.status }}
+                  </UBadge>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                  <UButton v-if="tontine.status === 'inactive'" @click="activateTontine(tontine.id)" color="green" variant="ghost" size="xs">
+                    Activate
+                  </UButton>
+                  <UButton v-if="tontine.status === 'active'" @click="deactivateTontine(tontine.id)" color="yellow" variant="ghost" size="xs">
+                    Deactivate
+                  </UButton>
+                  <UButton @click="navigateTo(`/manage?tontine=${tontine.id}`)" color="blue" variant="ghost" size="xs">
+                    Manage
+                  </UButton>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </UCard>
+    </div>
+
     <!-- Add Member Modal -->
     <UModal v-model="showAddModal">
       <UCard>
@@ -417,6 +480,7 @@ definePageMeta({
   layout: 'default'
 })
 
+const { user } = useAuth()
 const { api } = useApi()
 const toast = useToast()
 const route = useRoute()
@@ -427,6 +491,7 @@ const members = ref([])
 const contributions = ref([])
 const loans = ref([])
 const payments = ref([])
+const tontines = ref([])
 const loading = ref(true)
 const submitting = ref(false)
 const showAddModal = ref(false)
@@ -488,6 +553,7 @@ watch(activeTab, (newTab) => {
   if (newTab === 'contributions') fetchContributions()
   else if (newTab === 'loans') fetchLoans()
   else if (newTab === 'payments') fetchPayments()
+  else if (newTab === 'tontines') fetchTontines()
 })
 
 const fetchMembers = async () => {
@@ -751,6 +817,41 @@ const formatCurrency = (amount) => {
 
 const formatDate = (date) => {
   return new Date(date).toLocaleDateString('en-RW')
+}
+
+const fetchTontines = async () => {
+  try {
+    const response = await api('/tontines')
+    tontines.value = response
+  } catch (error) {
+    toast.add({ title: 'Error', description: 'Failed to fetch tontines', color: 'red' })
+  }
+}
+
+const activateTontine = async (id) => {
+  try {
+    await api(`/tontines/${id}/status`, {
+      method: 'PUT',
+      body: { status: 'active', userId: user.value?.id }
+    })
+    toast.add({ title: 'Success', description: 'Tontine activated successfully', color: 'green' })
+    fetchTontines()
+  } catch (error) {
+    toast.add({ title: 'Error', description: 'Failed to activate tontine', color: 'red' })
+  }
+}
+
+const deactivateTontine = async (id) => {
+  try {
+    await api(`/tontines/${id}/status`, {
+      method: 'PUT',
+      body: { status: 'inactive', userId: user.value?.id }
+    })
+    toast.add({ title: 'Success', description: 'Tontine deactivated successfully', color: 'green' })
+    fetchTontines()
+  } catch (error) {
+    toast.add({ title: 'Error', description: 'Failed to deactivate tontine', color: 'red' })
+  }
 }
 
 

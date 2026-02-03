@@ -102,7 +102,7 @@
                 <div class="py-2">
                   <div class="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
                     <p class="text-sm font-medium text-gray-900 dark:text-white">{{ user?.names }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ user?.email }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ user?.email }}</p>
                   </div>
                   <button @click="navigateTo('/profile'); showUserDropdown = false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
                     <Icon name="i-heroicons-user" class="w-4 h-4 text-gray-600 dark:text-white" />
@@ -152,6 +152,12 @@ onMounted(async () => {
     if (userData) {
       user.value = JSON.parse(userData)
       await fetchNotifications()
+      
+      // Set up periodic refresh for notifications
+      setInterval(fetchNotifications, 30000) // Refresh every 30 seconds
+      
+      // Set up auto-refresh listener
+      setupAutoRefresh()
     }
     
     // Close dropdown when clicking outside
@@ -163,6 +169,26 @@ onMounted(async () => {
     })
   }
 })
+
+const setupAutoRefresh = () => {
+  // Listen for storage events (cross-tab communication)
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'auto-refresh-trigger') {
+      console.log('Auto-refresh triggered by storage event')
+      setTimeout(() => {
+        window.location.reload()
+      }, 500)
+    }
+  })
+  
+  // Listen for custom events
+  window.addEventListener('auto-refresh', () => {
+    console.log('Auto-refresh triggered by custom event')
+    setTimeout(() => {
+      window.location.reload()
+    }, 500)
+  })
+}
 
 const handleLogout = () => {
   if (process.client) {

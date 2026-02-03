@@ -37,13 +37,13 @@ router.put('/:id/read', async (req, res) => {
   }
 });
 
-// Cleanup old notifications (older than 5 days)
+// Cleanup old notifications (older than 1 month)
 router.delete('/cleanup', async (req, res) => {
   const db = req.app.get('db');
 
   try {
     const [result] = await db.execute(
-      'DELETE FROM notifications WHERE created_at < DATE_SUB(NOW(), INTERVAL 5 DAY)'
+      'DELETE FROM notifications WHERE created_at < DATE_SUB(NOW(), INTERVAL 1 MONTH)'
     );
 
     res.json({ 

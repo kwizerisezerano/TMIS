@@ -1,118 +1,89 @@
 <template>
   <div class="min-h-screen bg-white">
-    <div class="max-w-6xl mx-auto p-6">
-      <div class="flex justify-between items-center mb-8">
-        <div>
-          <h1 class="text-3xl font-bold text-green-600">Tontine Management</h1>
-          <p class="text-gray-600">Manage The Future Association tontines</p>
-        </div>
-        <div class="flex gap-4">
-          <UButton @click="navigateTo('/dashboard')" variant="outline" icon="i-heroicons-arrow-left">
-            Back to Dashboard
-          </UButton>
-              <button v-if="isAdmin" @click="showCreateModal = true" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                <Icon name="i-heroicons-plus" class="w-4 h-4" />
-                Create Tontine
-              </button>
-        </div>
-      </div>
+    <div>
+      <PageHeader 
+        title="Tontines" 
+        description="Browse and manage tontines"
+      >
+        <template #actions>
+          <ActionButton 
+            v-if="isAdmin" 
+            @click="openModal('create')" 
+            icon="i-heroicons-plus"
+          >
+            Create Tontine
+          </ActionButton>
+        </template>
+      </PageHeader>
 
-      <!-- Tontines List -->
-      <div v-if="loading" class="text-center py-8">
-        <div class="text-gray-500">Loading tontines...</div>
-      </div>
-      
-      <div v-else class="grid gap-6">
-        <UCard v-for="tontine in tontines" :key="tontine.id" class="border-0 shadow-lg">
-          <div class="p-6">
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <h3 class="text-xl font-semibold text-green-600">{{ tontine.name }}</h3>
-                <p class="text-gray-600">{{ tontine.description }}</p>
-              </div>
-              <span :class="tontine.status === 'active' ? 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300' : 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
-                {{ tontine.status }}
-              </span>
-            </div>
-            
-            <div class="grid md:grid-cols-4 gap-4 mb-4">
-              <div class="bg-white dark:bg-slate-800 p-3 rounded-lg border border-gray-200 dark:border-slate-700">
-                <div class="text-lg font-bold text-green-600">RWF {{ Number(tontine.contribution_amount).toLocaleString() }}</div>
-                <div class="text-sm text-gray-600 dark:text-slate-400">Monthly Contribution</div>
-              </div>
-              <div class="bg-white dark:bg-slate-800 p-3 rounded-lg border border-gray-200 dark:border-slate-700">
-                <div class="text-lg font-bold text-gray-700 dark:text-slate-300">{{ tontine.member_count || 0 }}/{{ tontine.max_members }}</div>
-                <div class="text-sm text-gray-600 dark:text-slate-400">Members</div>
-              </div>
-              <div class="bg-white dark:bg-slate-800 p-3 rounded-lg border border-gray-200 dark:border-slate-700">
-                <div class="text-lg font-bold text-gray-700 dark:text-slate-300">RWF {{ Number(tontine.total_contributions || 0).toLocaleString() }}</div>
-                <div class="text-sm text-gray-600 dark:text-slate-400">Total Contributions</div>
-              </div>
-              <div class="bg-white dark:bg-slate-800 p-3 rounded-lg border border-gray-200 dark:border-slate-700">
-                <div class="text-lg font-bold text-gray-700 dark:text-slate-300">{{ formatDate(tontine.start_date) }}</div>
-                <div class="text-sm text-gray-600 dark:text-slate-400">Start Date</div>
-              </div>
-            </div>
-            
-            <div class="flex gap-2">
-              <UButton @click="() => navigateTo(`/tontine-details?id=${tontine.id}`)" size="sm" variant="outline">
-                View Details
-              </UButton>
-              <button v-if="!isMember(tontine.id) && tontine.member_count < tontine.max_members" @click="showJoinModal(tontine)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
-                Join Tontine
-              </button>
-              <UButton v-else-if="!isMember(tontine.id)" size="sm" color="gray" disabled>
-                Tontine Full
-              </UButton>
-            </div>
+      <!-- Search and Filters -->
+      <DataTable 
+        :data="tontines"
+        :columns="tableColumns"
+        :loading="loading"
+        search-placeholder="Search tontines..."
+        loading-text="Loading tontines..."
+        item-name="tontines"
+        :filters="statusFilters"
+      >
+        <template #name="{ item }">
+          <div class="text-sm font-medium text-green-600">{{ item.name }}</div>
+        </template>
+        
+        <template #contribution_amount="{ item }">
+          <div class="text-sm font-medium text-gray-900">RWF {{ Number(item.contribution_amount).toLocaleString() }}</div>
+          <div class="text-xs text-gray-500">Monthly</div>
+        </template>
+        
+        <template #members="{ item }">
+          <div class="text-sm text-gray-900">{{ item.member_count || 0 }}/{{ item.max_members }}</div>
+        </template>
+        
+        <template #total_contributions="{ item }">
+          <div class="text-sm text-gray-900">RWF {{ Number(item.total_contributions || 0).toLocaleString() }}</div>
+        </template>
+        
+        <template #status="{ item }">
+          <StatusBadge :status="item.status" />
+        </template>
+        
+        <template #actions="{ item }">
+          <div class="space-x-2">
+            <button @click="viewTontine(item.id)" class="text-green-600 hover:text-green-900">
+              View
+            </button>
+            <button @click="viewTontineReport(item.id)" class="text-purple-600 hover:text-purple-900">
+              Reports
+            </button>
+            <button v-if="!isMember(item.id) && item.member_count < item.max_members && item.status === 'active'" @click="showJoinModal(item)" class="text-blue-600 hover:text-blue-900">
+              Join
+            </button>
+            <button v-if="isAdmin && item.status === 'inactive'" @click="activateTontine(item.id)" class="text-green-600 hover:text-green-900">
+              Activate
+            </button>
+            <button v-if="isAdmin && item.status === 'active'" @click="deactivateTontine(item.id)" class="text-yellow-600 hover:text-yellow-900">
+              Deactivate
+            </button>
+            <button v-if="isAdmin" @click="openModal('edit', item)" class="text-blue-600 hover:text-blue-900">
+              Edit
+            </button>
+            <button v-if="isAdmin" @click="openModal('delete', item)" class="text-red-600 hover:text-red-900">
+              Delete
+            </button>
           </div>
-        </UCard>
-      </div>
+        </template>
+      </DataTable>
     </div>
 
-    <!-- Create Tontine Modal -->
-    <UModal v-model="showCreateModal">
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold text-green-600">Create New Tontine</h3>
-        </template>
-        
-        <div class="space-y-4">
-          <UFormGroup label="Tontine Name" required>
-            <UInput v-model="newTontine.name" placeholder="Enter tontine name" />
-          </UFormGroup>
-          
-          <UFormGroup label="Description">
-            <UTextarea v-model="newTontine.description" placeholder="Describe the tontine purpose" />
-          </UFormGroup>
-          
-          <UFormGroup label="Monthly Contribution Amount (RWF)" required>
-            <UInput v-model="newTontine.contribution_amount" type="number" placeholder="20000" />
-          </UFormGroup>
-          
-          <UFormGroup label="Maximum Members" required>
-            <UInput v-model="newTontine.max_members" type="number" placeholder="20" max="20" />
-          </UFormGroup>
-          
-          <UFormGroup label="Start Date">
-            <UInput v-model="newTontine.start_date" type="date" :min="today" />
-          </UFormGroup>
-          
-          <UFormGroup label="End Date (Optional)">
-            <UInput v-model="newTontine.end_date" type="date" :min="newTontine.start_date || today" />
-          </UFormGroup>
-        </div>
-        
-        <template #footer>
-          <div class="flex gap-2 justify-end">
-            <UButton @click="showCreateModal = false" variant="outline">Cancel</UButton>
-            <UButton @click="createTontine" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg" :loading="createLoading">
-              Create Tontine
-            </UButton>
-          </div>
-        </template>
-      </UCard>
-    </UModal>
+    <!-- Tontine Modal (Create/Edit/Delete) -->
+    <TontineModal 
+      v-model="showModal" 
+      :mode="modalMode" 
+      :tontine="selectedTontine" 
+      :loading="modalLoading"
+      @confirm="handleModalConfirm"
+      @cancel="handleModalCancel"
+    />
 
     <!-- Join Confirmation Modal -->
     <UModal v-model="showJoinConfirm">
@@ -152,12 +123,35 @@
         </template>
       </UCard>
     </UModal>
+
   </div>
 </template>
 
 <script setup>
+const searchQuery = ref('')
+const statusFilter = ref('')
+const currentPage = ref(1)
+const itemsPerPage = 6
 const showCreateModal = ref(false)
-const createLoading = ref(false)
+const showModal = ref(false)
+const modalMode = ref('create')
+const modalLoading = ref(false)
+
+const tableColumns = [
+  { key: 'name', label: 'Name' },
+  { key: 'description', label: 'Description' },
+  { key: 'contribution_amount', label: 'Contribution' },
+  { key: 'members', label: 'Members' },
+  { key: 'total_contributions', label: 'Total' },
+  { key: 'status', label: 'Status' },
+  { key: 'actions', label: 'Actions' }
+]
+
+const statusFilters = [
+  { label: 'All Status', value: '', filterFn: null },
+  { label: 'Active', value: 'active', filterFn: (item) => item.status === 'active' },
+  { label: 'Inactive', value: 'inactive', filterFn: (item) => item.status === 'inactive' }
+]
 const loading = ref(true)
 const tontines = ref([])
 const user = ref(null)
@@ -166,16 +160,6 @@ const showJoinConfirm = ref(false)
 const selectedTontine = ref(null)
 const joinLoading = ref(false)
 
-const today = new Date().toISOString().split('T')[0]
-
-const newTontine = ref({
-  name: '',
-  description: '',
-  contribution_amount: 20000,
-  max_members: 20,
-  start_date: '',
-  end_date: ''
-})
 
 const isAdmin = computed(() => {
   return user.value?.role === 'admin' || user.value?.role === 'president'
@@ -218,52 +202,67 @@ const isMember = (tontineId) => {
   return userTontines.value.some(t => t.id === tontineId)
 }
 
-const createTontine = async () => {
-  createLoading.value = true
+const openModal = (mode, tontine = null) => {
+  modalMode.value = mode
+  selectedTontine.value = tontine
+  showModal.value = true
+}
+
+const handleModalConfirm = async (formData) => {
+  modalLoading.value = true
   
   try {
-    const response = await fetch('http://localhost:8000/api/tontines', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        ...newTontine.value,
-        creator_id: user.value.id
+    if (modalMode.value === 'delete') {
+      await fetch(`http://localhost:8000/api/tontines/${selectedTontine.value.id}`, {
+        method: 'DELETE'
       })
-    })
-    
-    const data = await response.json()
-    
-    const toast = useToast()
-    toast.add({
-      title: '✅ Tontine Created!',
-      description: 'New tontine has been created successfully',
-      color: 'green'
-    })
-    
-    showCreateModal.value = false
-    await fetchTontines()
-    
-    // Reset form
-    newTontine.value = {
-      name: '',
-      description: '',
-      contribution_amount: 20000,
-      max_members: 20,
-      start_date: '',
-      end_date: ''
+      
+      const toast = useToast()
+      toast.add({
+        title: '✅ Tontine Deleted!',
+        description: 'Tontine has been deleted successfully',
+        color: 'green'
+      })
+    } else {
+      const isEdit = modalMode.value === 'edit'
+      const url = isEdit ? `http://localhost:8000/api/tontines/${selectedTontine.value.id}` : 'http://localhost:8000/api/tontines'
+      const method = isEdit ? 'PUT' : 'POST'
+      
+      await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...formData,
+          creator_id: user.value.id
+        })
+      })
+      
+      const toast = useToast()
+      toast.add({
+        title: isEdit ? '✅ Tontine Updated!' : '✅ Tontine Created!',
+        description: isEdit ? 'Tontine has been updated successfully' : 'New tontine has been created successfully',
+        color: 'green'
+      })
     }
+    
+    showModal.value = false
+    await fetchTontines()
   } catch (error) {
     const toast = useToast()
     toast.add({
-      title: '❌ Creation Failed',
-      description: error.data?.message || 'Failed to create tontine',
+      title: '❌ Operation Failed',
+      description: 'Failed to complete operation',
       color: 'red'
     })
   } finally {
-    createLoading.value = false
+    modalLoading.value = false
   }
+}
+
+const handleModalCancel = () => {
+  showModal.value = false
 }
 
 const showJoinModal = (tontine) => {
@@ -307,12 +306,13 @@ const confirmJoin = async () => {
 }
 
 const viewTontine = (tontineId) => {
-  navigateTo(`/tontines/${tontineId}`)
+  const router = useRouter()
+  router.push(`/tontine-details?id=${tontineId}`)
 }
 
-const manageTontine = (tontineId) => {
-  // Navigate to tontine-specific management page
-  navigateTo(`/tontines/${tontineId}/manage`)
+const viewTontineReport = (tontineId) => {
+  const router = useRouter()
+  router.push(`/reports?tontine=${tontineId}`)
 }
 
 const formatDate = (dateString) => {
@@ -323,6 +323,62 @@ const formatDate = (dateString) => {
     month: 'short', 
     day: 'numeric' 
   })
+}
+
+const activateTontine = async (id) => {
+  try {
+    await fetch(`http://localhost:8000/api/tontines/${id}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status: 'active', userId: user.value?.id })
+    })
+    
+    const toast = useToast()
+    toast.add({
+      title: '✅ Tontine Activated!',
+      description: 'Tontine has been activated successfully',
+      color: 'green'
+    })
+    
+    await fetchTontines()
+  } catch (error) {
+    const toast = useToast()
+    toast.add({
+      title: '❌ Activation Failed',
+      description: 'Failed to activate tontine',
+      color: 'red'
+    })
+  }
+}
+
+const deactivateTontine = async (id) => {
+  try {
+    await fetch(`http://localhost:8000/api/tontines/${id}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status: 'inactive', userId: user.value?.id })
+    })
+    
+    const toast = useToast()
+    toast.add({
+      title: '✅ Tontine Deactivated!',
+      description: 'Tontine has been deactivated successfully',
+      color: 'green'
+    })
+    
+    await fetchTontines()
+  } catch (error) {
+    const toast = useToast()
+    toast.add({
+      title: '❌ Deactivation Failed',
+      description: 'Failed to deactivate tontine',
+      color: 'red'
+    })
+  }
 }
 
 definePageMeta({

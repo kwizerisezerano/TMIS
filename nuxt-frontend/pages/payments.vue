@@ -1,10 +1,10 @@
 <template>
-  <div class="min-h-screen bg-white">
-    <div class="max-w-4xl mx-auto p-6">
+  <div class="min-h-screen bg-white dark:bg-slate-900">
+    <div>
       <div class="flex justify-between items-center mb-8">
         <div>
           <h1 class="text-3xl font-bold text-green-600">Payment History</h1>
-          <p class="text-gray-600">Track all your contributions and loan payments</p>
+          <p class="text-gray-600 dark:text-slate-400">Track all your contributions and loan payments</p>
         </div>
         <UButton @click="navigateTo('/dashboard')" variant="outline">
           Back to Dashboard
@@ -17,7 +17,7 @@
           <div class="text-center p-4">
             <div v-if="loading" class="text-xl text-gray-400">Loading...</div>
             <div v-else class="text-2xl font-bold text-green-600">RWF {{ totalContributions.toLocaleString() }}</div>
-            <div class="text-sm text-gray-600">Total Contributions</div>
+            <div class="text-sm text-gray-600 dark:text-slate-400">Total Contributions</div>
           </div>
         </UCard>
         
@@ -25,31 +25,31 @@
           <div class="text-center p-4">
             <div v-if="loading" class="text-xl text-gray-400">Loading...</div>
             <div v-else class="text-2xl font-bold text-blue-600">RWF {{ totalLoanPayments.toLocaleString() }}</div>
-            <div class="text-sm text-gray-600">Total Loan Payments</div>
+            <div class="text-sm text-gray-600 dark:text-slate-400">Total Loan Payments</div>
           </div>
         </UCard>
         
         <UCard class="border-0 shadow-lg">
           <div class="text-center p-4">
             <div class="text-2xl font-bold text-purple-600">{{ totalTransactions }}</div>
-            <div class="text-sm text-gray-600">Total Transactions</div>
+            <div class="text-sm text-gray-600 dark:text-slate-400">Total Transactions</div>
           </div>
         </UCard>
       </div>
 
       <!-- Payment Tabs -->
       <div class="mb-6">
-        <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+        <div class="flex space-x-1 bg-gray-100 dark:bg-slate-700 p-1 rounded-lg">
           <button 
             @click="activeTab = 'contributions'" 
-            :class="activeTab === 'contributions' ? 'bg-white text-green-600 shadow' : 'text-gray-600'"
+            :class="activeTab === 'contributions' ? 'bg-white dark:bg-slate-600 text-green-600 shadow' : 'text-gray-600 dark:text-slate-400'"
             class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors"
           >
             Contributions
           </button>
           <button 
             @click="activeTab = 'loans'" 
-            :class="activeTab === 'loans' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'"
+            :class="activeTab === 'loans' ? 'bg-white dark:bg-slate-600 text-blue-600 shadow' : 'text-gray-600 dark:text-slate-400'"
             class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors"
           >
             Loan Payments
@@ -70,17 +70,17 @@
             </div>
             <div v-else class="space-y-3">
               <div v-for="contribution in contributions" :key="contribution.id" 
-                   class="flex justify-between items-center p-4 bg-green-50 rounded-lg border border-green-100">
+                   class="flex justify-between items-center p-4 bg-gray-50 dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600">
                 <div>
-                  <div class="font-semibold text-gray-900">{{ contribution.tontine_name }}</div>
-                  <div class="text-sm text-gray-600">{{ formatDate(contribution.contribution_date) }}</div>
+                  <div class="font-semibold text-gray-900 dark:text-white">{{ contribution.tontine_name }}</div>
+                  <div class="text-sm text-gray-600 dark:text-slate-400">{{ formatDate(contribution.contribution_date) }}</div>
                 </div>
                 <div class="text-right">
                   <div class="text-lg font-bold text-green-600">RWF {{ parseFloat(contribution.amount).toLocaleString() }}</div>
                   <div class="text-xs" :class="getStatusClass(contribution.payment_status)">
                     {{ contribution.payment_status }}
                   </div>
-                  <div class="text-xs text-gray-500">{{ formatPaymentMethod(contribution.payment_method) }}</div>
+                  <div class="text-xs text-gray-500 dark:text-slate-400">{{ formatPaymentMethod(contribution.payment_method) }}</div>
                 </div>
               </div>
             </div>
@@ -101,14 +101,18 @@
             </div>
             <div v-else class="space-y-3">
               <div v-for="payment in loanPayments" :key="payment.id" 
-                   class="flex justify-between items-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                   class="flex justify-between items-center p-4 rounded-lg border bg-gray-50 dark:bg-slate-700 border-gray-200 dark:border-slate-600">
                 <div>
-                  <div class="font-semibold text-gray-900">{{ payment.tontine_name }}</div>
-                  <div class="text-sm text-gray-600">{{ formatDate(payment.payment_date) }}</div>
-                  <div class="text-xs text-gray-500">Loan Amount: RWF {{ parseFloat(payment.amount).toLocaleString() }}</div>
+                  <div class="font-semibold text-gray-900 dark:text-white">{{ payment.tontine_name }}</div>
+                  <div class="text-sm text-gray-600 dark:text-slate-400">{{ formatDate(payment.payment_date) }}</div>
+                  <div class="text-xs text-gray-500 dark:text-slate-400">Loan Amount: RWF {{ parseFloat(payment.amount).toLocaleString() }}</div>
                 </div>
                 <div class="text-right">
-                  <div class="text-lg font-bold text-blue-600">RWF {{ parseFloat(payment.amount).toLocaleString() }}</div>
+                  <div class="text-lg font-bold" :class="{
+                    'text-green-600': payment.payment_status === 'Approved',
+                    'text-yellow-600': payment.payment_status === 'Pending', 
+                    'text-red-600': payment.payment_status === 'Failed'
+                  }">RWF {{ parseFloat(payment.amount).toLocaleString() }}</div>
                   <div class="text-xs" :class="getStatusClass(payment.payment_status)">
                     {{ payment.payment_status }}
                   </div>
@@ -213,12 +217,43 @@ const getStatusClass = (status) => {
 }
 
 const exportPaymentHistory = () => {
-  const toast = useToast()
-  toast.add({
-    title: '📄 Export Started',
-    description: 'Payment history export will be available soon',
-    color: 'blue'
-  })
+  try {
+    // Create CSV content
+    let csvContent = 'Type,Tontine,Date,Amount,Status,Payment Method\n'
+    
+    // Add contributions
+    contributions.value.forEach(c => {
+      csvContent += `Contribution,"${c.tontine_name}",${c.contribution_date},${c.amount},${c.payment_status},${formatPaymentMethod(c.payment_method)}\n`
+    })
+    
+    // Add loan payments
+    loanPayments.value.forEach(p => {
+      csvContent += `Loan Payment,"${p.tontine_name}",${p.payment_date},${p.amount},${p.payment_status},${formatPaymentMethod(p.payment_method)}\n`
+    })
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `payment-history-${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    
+    const toast = useToast()
+    toast.add({
+      title: '✅ Export Complete',
+      description: 'Payment history downloaded successfully',
+      color: 'green'
+    })
+  } catch (error) {
+    const toast = useToast()
+    toast.add({
+      title: '❌ Export Failed',
+      description: 'Failed to export payment history',
+      color: 'red'
+    })
+  }
 }
 
 definePageMeta({

@@ -1,4 +1,6 @@
 const express = require('express');
+const checkTontineStatus = require('../middleware/checkTontineStatus');
+const checkAdmin = require('../middleware/checkAdmin');
 const router = express.Router();
 
 // Get all tontines
@@ -91,7 +93,7 @@ router.get('/user/:userId', async (req, res) => {
        JOIN tontine_members tm ON t.id = tm.tontine_id AND tm.user_id = ?
        LEFT JOIN tontine_members tm2 ON t.id = tm2.tontine_id AND tm2.status = 'approved'
        LEFT JOIN contributions c ON t.id = c.tontine_id AND c.payment_status = 'Approved'
-       WHERE tm.status = 'approved'
+       WHERE tm.status = 'approved' AND t.status = 'active'
        GROUP BY t.id, t.name, t.description, t.contribution_amount, t.contribution_frequency, 
                 t.max_members, t.creator_id, t.start_date, t.end_date, t.status, t.created_at, u.names, tm.shares
        ORDER BY t.created_at DESC`,
@@ -174,7 +176,7 @@ router.post('/', async (req, res) => {
 });
 
 // Join tontine
-router.post('/:id/join', async (req, res) => {
+router.post('/:id/join', checkTontineStatus, async (req, res) => {
   const { id } = req.params;
   const { userId } = req.body;
   const db = req.app.get('db');
@@ -325,6 +327,64 @@ router.put('/:id/members/:memberId/shares', async (req, res) => {
   } catch (error) {
     console.error('Update member shares error:', error);
     res.status(500).json({ message: 'Failed to update member shares' });
+  }
+});
+
+// Update tontine status (activate/deactivate)
+router.put('/:id/status', checkAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const db = req.app.get('db');
+
+  try {
+    // Validate status
+    if (!['active', 'inactive', 'completed'].includes(status)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid status. Must be active, inactive, or completed' 
+      });
+    }
+
+    await db.execute(
+      'UPDATE tontines SET status = ? WHERE id = ?',
+      [status, id]
+    );
+
+    res.json({ message: `Tontine ${status === 'active' ? 'activated' : status === 'inactive' ? 'deactivated' : 'completed'} successfully`, success: true });
+  } catch (error) {
+    console.error('Update tontine status error:', error);
+    res.status(500).json({ message: 'Failed to update tontine status' });
+  }
+});
+
+// Delete tontine (mark as inactive)
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const db = req.app.get('db');
+
+  try {
+    console.log('Attempting to delete tontine with ID:', id);
+    
+    // Check if tontine exists
+    const [tontines] = await db.execute('SELECT * FROM tontines WHERE id = ?', [id]);
+    if (tontines.length === 0) {
+      return res.status(404).json({ message: 'Tontine not found' });
+    }
+
+    console.log('Tontine found, marking as inactive');
+    
+    // Mark tontine as inactive instead of deleting
+    await db.execute('UPDATE tontines SET status = ? WHERE id = ?', ['inactive', id]);
+
+    console.log('Tontine marked as inactive successfully');
+    res.json({ message: 'Tontine deactivated successfully', success: true });
+  } catch (error) {
+    console.error('Delete tontine error:', error);
+    res.status(500).json({ 
+      message: 'Failed to deactivate tontine', 
+      error: error.message,
+      success: false 
+    });
   }
 });
 
