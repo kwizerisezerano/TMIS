@@ -15,7 +15,8 @@ const Payments = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState({
     contributions: [],
-    loanPayments: []
+    loanPayments: [],
+    penaltyPayments: []
   });
   const [tontines, setTontines] = useState([]);
   const [loans, setLoans] = useState([]);

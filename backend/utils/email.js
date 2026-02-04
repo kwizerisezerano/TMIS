@@ -145,7 +145,7 @@ const sendEmail = async (email, subject, message) => {
           
           <!-- Login Button -->
           <div style="text-align: center; margin: 30px 0;">
-            <a href="http://localhost:3000/login" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Login to Dashboard</a>
+            <a href="http://localhost:3001/login" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Login to Dashboard</a>
           </div>
         </div>
         

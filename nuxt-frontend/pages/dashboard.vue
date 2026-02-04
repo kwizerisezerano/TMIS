@@ -146,13 +146,35 @@
                         <div class="bg-blue-600 h-3 rounded-full" :style="{ width: stats.totalLoanPaid > 0 ? Math.min((stats.totalLoanPaid / Math.max(stats.totalContributions, 1)) * 100, 100) + '%' : '0%' }"></div>
                       </div>
                     </div>
+                    <!-- Paid Penalties Bar -->
+                    <div>
+                      <div class="flex justify-between text-xs mb-1">
+                        <span class="text-green-600">Paid Penalties</span>
+                        <span class="text-green-600">{{ stats.penalties.paid.toLocaleString() }}</span>
+                      </div>
+                      <div class="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-3">
+                        <div class="bg-green-600 h-3 rounded-full" :style="{ width: stats.penalties.paid > 0 ? Math.min((stats.penalties.paid / Math.max(stats.totalContributions, 1)) * 100, 100) + '%' : '0%' }"></div>
+                      </div>
+                    </div>
+                    <!-- Penalties Bar -->
+                    <div>
+                      <div class="flex justify-between text-xs mb-1">
+                        <span class="text-red-600">Pending Penalties</span>
+                        <span class="text-red-600">{{ stats.penalties.pending.toLocaleString() }}</span>
+                      </div>
+                      <div class="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-3">
+                        <div class="bg-red-600 h-3 rounded-full" :style="{ width: stats.penalties.pending > 0 ? Math.min((stats.penalties.pending / Math.max(stats.totalContributions, 1)) * 100, 100) + '%' : '0%' }"></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
               <div class="text-center mt-4">
-                <div class="text-2xl font-bold" :class="(stats.totalContributions - stats.totalLoans) >= 0 ? 'text-gray-600 dark:text-slate-400' : 'text-red-600'">RWF {{ (stats.totalContributions - stats.totalLoans).toLocaleString() }}</div>
-                <div class="text-sm text-gray-600 dark:text-slate-400">Savings - Outstanding Loans</div>
+                <div class="text-2xl font-bold text-gray-600 dark:text-slate-400">RWF {{ Math.max(0, (stats.totalContributions - stats.totalLoans - stats.penalties.pending)).toLocaleString() }}</div>
+                <div class="text-sm text-gray-600 dark:text-slate-400">Savings - Outstanding Loans - Pending Penalties</div>
                 <div class="text-xs text-orange-600 mt-1">Loan Requests: RWF {{ Math.round(stats.totalLoanRequested).toLocaleString() }}</div>
+                <div class="text-xs text-red-600 mt-1">Pending Penalties: RWF {{ stats.penalties.pending.toLocaleString() }}</div>
+                <div class="text-xs text-green-600 mt-1">Paid Penalties: RWF {{ stats.penalties.paid.toLocaleString() }}</div>
               </div>
             </div>
           </UCard>
@@ -225,7 +247,12 @@ const stats = ref({
   totalLoans: 0,
   totalLoanPaid: 0,
   totalLoanRequested: 0,
-  memberCount: 0
+  memberCount: 0,
+  penalties: {
+    pending: 0,
+    paid: 0,
+    total: 0
+  }
 })
 const loading = ref(true)
 const user = ref(null)
@@ -310,6 +337,11 @@ const fetchDashboardData = async () => {
     stats.value.totalLoans = totalLoanAmount - totalLoanPaid // Net loan balance
     stats.value.totalLoanPaid = totalLoanPaid // Total paid amount
     stats.value.totalLoanRequested = totalLoanAmount // Total requested amount
+    
+    // Fetch penalty data
+    const penaltiesResponse = await fetch(`http://localhost:8000/api/contributions/dashboard-stats/${user.value.id}`)
+    const dashboardStats = await penaltiesResponse.json()
+    stats.value.penalties = dashboardStats.penalties || { pending: 0, paid: 0, total: 0 }
     
     // Get total member count from all tontines
     try {

@@ -598,6 +598,17 @@ router.get('/history/:userId', async (req, res) => {
       [userId]
     );
 
+    // Get penalty payments
+    const [penaltyPayments] = await db.execute(
+      `SELECT p.id, p.amount, p.reason, p.status, p.paid_at as payment_date, 
+              'penalty' as payment_type, t.name as tontine_name
+       FROM penalties p 
+       LEFT JOIN tontines t ON p.tontine_id = t.id
+       WHERE p.user_id = ? AND p.status = 'paid'
+       ORDER BY p.paid_at DESC`,
+      [userId]
+    );
+
     // Check pending payments with Lanari API
     for (const contribution of contributions) {
       if (contribution.payment_status === 'Pending' && contribution.payment_method === 'mobile_money') {
@@ -608,7 +619,7 @@ router.get('/history/:userId', async (req, res) => {
       }
     }
 
-    res.json({ contributions, loanPayments });
+    res.json({ contributions, loanPayments, penaltyPayments });
 
   } catch (error) {
     console.error('Payment history error:', error);
@@ -631,6 +642,12 @@ router.get('/history/all', async (req, res) => {
               lp.payment_status as status, u.names as member_name, 'loan_payment' as payment_type
        FROM loan_payments lp 
        JOIN users u ON lp.user_id = u.id 
+       UNION ALL
+       SELECT p.id, p.user_id, p.amount, 'mobile_money' as payment_method, p.paid_at as created_at,
+              p.status, u.names as member_name, 'penalty' as payment_type
+       FROM penalties p 
+       JOIN users u ON p.user_id = u.id 
+       WHERE p.status = 'paid'
        ORDER BY created_at DESC`
     );
 

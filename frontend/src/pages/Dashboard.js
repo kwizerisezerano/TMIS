@@ -10,6 +10,7 @@ import moment from 'moment';
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
 const Dashboard = () => {
+  console.log('Dashboard component loaded - with penalty support');
   const { currentUser } = useAuth();
   const { notifications } = useSocket();
   const [dashboardData, setDashboardData] = useState({
@@ -33,6 +34,12 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
+      // Fetch dashboard stats from new endpoint
+      console.log('Fetching dashboard stats for user:', currentUser.id);
+      const statsResponse = await axios.get(`/api/contributions/dashboard-stats/${currentUser.id}`);
+      const stats = statsResponse.data;
+      console.log('Dashboard stats received:', stats);
+      
       // Fetch user's tontines
       const tontinesResponse = await axios.get('/api/tontines');
       const userTontines = tontinesResponse.data.filter(t => 
@@ -46,15 +53,6 @@ const Dashboard = () => {
       // Fetch user's loans
       const loansResponse = await axios.get(`/api/loans/user/${currentUser.id}`);
 
-      // Calculate stats
-      const totalContributions = contributionsResponse.data
-        .filter(c => c.payment_status === 'Approved')
-        .reduce((sum, c) => sum + parseFloat(c.amount), 0);
-      
-      const totalLoans = loansResponse.data
-        .filter(l => l.status === 'Approved')
-        .reduce((sum, l) => sum + parseFloat(l.loan_amount), 0);
-
       const activeTontines = userTontines.filter(t => t.status === 'active').length;
       
       const pendingPayments = contributionsResponse.data
@@ -65,10 +63,13 @@ const Dashboard = () => {
         contributions: contributionsResponse.data,
         loans: loansResponse.data,
         stats: {
-          totalContributions,
-          totalLoans,
+          totalContributions: stats.savings,
+          totalLoans: stats.outstandingLoans,
+          loanPayments: stats.loanPayments,
+          netWorth: stats.netWorth,
           activeTontines,
-          pendingPayments
+          pendingPayments,
+          penalties: stats.penalties
         }
       });
 
@@ -143,35 +144,53 @@ const Dashboard = () => {
 
       {/* Stats Cards */}
       <Row className="mb-4">
-        <Col md={3}>
+        <Col md={2}>
           <Card className="text-center">
             <Card.Body>
-              <Card.Title className="text-primary">RWF {dashboardData.stats.totalContributions.toLocaleString()}</Card.Title>
-              <Card.Text>Total Contributions</Card.Text>
+              <Card.Title className="text-primary">RWF {dashboardData.stats.totalContributions?.toLocaleString() || 0}</Card.Title>
+              <Card.Text>Savings</Card.Text>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
+        <Col md={2}>
           <Card className="text-center">
             <Card.Body>
-              <Card.Title className="text-warning">RWF {dashboardData.stats.totalLoans.toLocaleString()}</Card.Title>
-              <Card.Text>Total Loans</Card.Text>
+              <Card.Title className="text-warning">RWF {dashboardData.stats.totalLoans?.toLocaleString() || 0}</Card.Title>
+              <Card.Text>Outstanding Loans</Card.Text>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
+        <Col md={2}>
           <Card className="text-center">
             <Card.Body>
-              <Card.Title className="text-success">{dashboardData.stats.activeTontines}</Card.Title>
-              <Card.Text>Active Tontines</Card.Text>
+              <Card.Title className="text-info">RWF {dashboardData.stats.loanPayments?.toLocaleString() || 0}</Card.Title>
+              <Card.Text>Loan Payments</Card.Text>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
+        <Col md={2}>
           <Card className="text-center">
             <Card.Body>
-              <Card.Title className="text-danger">{dashboardData.stats.pendingPayments}</Card.Title>
-              <Card.Text>Pending Payments</Card.Text>
+              <Card.Title className="text-danger">RWF {dashboardData.stats.penalties?.pending?.toLocaleString() || 0}</Card.Title>
+              <Card.Text>Pending Penalties</Card.Text>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={2}>
+          <Card className="text-center">
+            <Card.Body>
+              <Card.Title className="text-success">RWF {dashboardData.stats.penalties?.paid?.toLocaleString() || 0}</Card.Title>
+              <Card.Text>Paid Penalties</Card.Text>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={2}>
+          <Card className="text-center">
+            <Card.Body>
+              <Card.Title className={`${dashboardData.stats.netWorth >= 0 ? 'text-success' : 'text-danger'}`}>
+                RWF {dashboardData.stats.netWorth?.toLocaleString() || 0}
+              </Card.Title>
+              <Card.Text>Net Worth</Card.Text>
             </Card.Body>
           </Card>
         </Col>

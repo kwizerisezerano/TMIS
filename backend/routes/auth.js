@@ -5,6 +5,93 @@ const crypto = require('crypto');
 const router = express.Router();
 const { sendVerificationEmail } = require('../utils/email');
 
+// Admin register new user
+router.post('/admin/register', async (req, res) => {
+  const { names, email, password, phone, role = 'member', adminId } = req.body;
+  const db = req.app.get('db');
+
+  console.log('Admin registration attempt:', { names, email, phone, role, adminId });
+
+  try {
+    // Verify admin status
+    const [adminUser] = await db.execute(
+      'SELECT role FROM users WHERE id = ?',
+      [adminId]
+    );
+
+    if (adminUser.length === 0 || adminUser[0].role !== 'admin') {
+      console.log('Admin verification failed');
+      return res.status(403).json({ 
+        success: false,
+        message: 'Admin privileges required' 
+      });
+    }
+
+    console.log('Admin verification passed');
+
+    // Check if user already exists
+    const [existingUser] = await db.execute(
+      'SELECT * FROM users WHERE email = ? OR phone = ?',
+      [email, phone]
+    );
+
+    if (existingUser.length > 0) {
+      console.log('User already exists');
+      return res.status(400).json({ 
+        success: false,
+        message: 'User with this email or phone already exists' 
+      });
+    }
+
+    console.log('User does not exist, proceeding with registration');
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Insert user (verified for admin registration)
+    const [result] = await db.execute(
+      'INSERT INTO users (names, email, password, phone, role, email_verified) VALUES (?, ?, ?, ?, ?, ?)',
+      [names, email, hashedPassword, phone, role, 1]
+    );
+    
+    console.log('User inserted with ID:', result.insertId);
+    
+    // Send welcome email
+    try {
+      const { sendEmail } = require('../utils/email');
+      const emailSent = await sendEmail(
+        email,
+        'Welcome to The Future Tontine',
+        `Dear ${names},\n\nWelcome to The Future Tontine! Your account has been created by an administrator.\n\nLogin Details:\nEmail: ${email}\nPassword: ${password}\n\nPlease login to access your dashboard.\n\nBest regards,\nThe Future Team`
+      );
+      console.log('Welcome email sent:', emailSent);
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError.message);
+    }
+
+    // Add welcome notification
+    await db.execute(
+      'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+      [result.insertId, 'Welcome to The Future!', 'Your account has been created by an administrator. Welcome to our tontine community!', 'success']
+    );
+
+    console.log('Registration completed successfully');
+
+    res.status(201).json({ 
+      success: true,
+      message: 'Member registered successfully and welcome email sent',
+      userId: result.insertId 
+    });
+
+  } catch (error) {
+    console.error('Admin registration error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to register member: ' + error.message 
+    });
+  }
+});
+
 // Register user directly to database
 router.post('/register', async (req, res) => {
   const { names, email, password, phone, role = 'member' } = req.body;

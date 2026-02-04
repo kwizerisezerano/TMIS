@@ -31,6 +31,14 @@
         
         <UCard class="border-0 shadow-lg">
           <div class="text-center p-4">
+            <div v-if="loading" class="text-xl text-gray-400">Loading...</div>
+            <div v-else class="text-2xl font-bold text-red-600">RWF {{ totalPenaltyPayments.toLocaleString() }}</div>
+            <div class="text-sm text-gray-600 dark:text-slate-400">Total Penalty Payments</div>
+          </div>
+        </UCard>
+        
+        <UCard class="border-0 shadow-lg">
+          <div class="text-center p-4">
             <div class="text-2xl font-bold text-purple-600">{{ totalTransactions }}</div>
             <div class="text-sm text-gray-600 dark:text-slate-400">Total Transactions</div>
           </div>
@@ -53,6 +61,13 @@
             class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors"
           >
             Loan Payments
+          </button>
+          <button 
+            @click="activeTab = 'penalties'" 
+            :class="activeTab === 'penalties' ? 'bg-white dark:bg-slate-600 text-red-600 shadow' : 'text-gray-600 dark:text-slate-400'"
+            class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors"
+          >
+            Penalty Payments
           </button>
         </div>
       </div>
@@ -123,6 +138,35 @@
         </UCard>
       </div>
 
+      <!-- Penalty Payments Tab -->
+      <div v-if="activeTab === 'penalties'">
+        <UCard class="border-0 shadow-lg">
+          <div class="p-6">
+            <h2 class="text-xl font-semibold text-red-600 mb-4">Penalty Payment History</h2>
+            <div v-if="loading" class="text-center py-8">
+              <div class="text-gray-500">Loading penalty payments...</div>
+            </div>
+            <div v-else-if="penaltyPayments.length === 0" class="text-center py-8">
+              <div class="text-gray-500">No penalty payments found</div>
+            </div>
+            <div v-else class="space-y-3">
+              <div v-for="payment in penaltyPayments" :key="payment.id" 
+                   class="flex justify-between items-center p-4 rounded-lg border bg-gray-50 dark:bg-slate-700 border-gray-200 dark:border-slate-600">
+                <div>
+                  <div class="font-semibold text-gray-900 dark:text-white">{{ payment.tontine_name || 'Penalty Payment' }}</div>
+                  <div class="text-sm text-gray-600 dark:text-slate-400">{{ formatDate(payment.payment_date) }}</div>
+                  <div class="text-xs text-gray-500 dark:text-slate-400">Reason: {{ payment.reason }}</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-bold text-red-600">RWF {{ parseFloat(payment.amount).toLocaleString() }}</div>
+                  <div class="text-xs text-green-600">Paid</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
       <!-- Export Options -->
       <div class="mt-8 text-center">
         <UButton @click="exportPaymentHistory" color="gray" variant="outline" size="sm">
@@ -138,6 +182,7 @@ const activeTab = ref('contributions')
 const loading = ref(true)
 const contributions = ref([])
 const loanPayments = ref([])
+const penaltyPayments = ref([])
 const user = ref(null)
 
 const totalContributions = computed(() => {
@@ -148,8 +193,12 @@ const totalLoanPayments = computed(() => {
   return loanPayments.value.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
 })
 
+const totalPenaltyPayments = computed(() => {
+  return penaltyPayments.value.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+})
+
 const totalTransactions = computed(() => {
-  return contributions.value.length + loanPayments.value.length
+  return contributions.value.length + loanPayments.value.length + penaltyPayments.value.length
 })
 
 onMounted(async () => {
@@ -169,6 +218,7 @@ const fetchPaymentHistory = async () => {
     
     contributions.value = data.contributions || []
     loanPayments.value = data.loanPayments || []
+    penaltyPayments.value = data.penaltyPayments || []
     
   } catch (error) {
     console.error('Failed to fetch payment history:', error)
@@ -229,6 +279,11 @@ const exportPaymentHistory = () => {
     // Add loan payments
     loanPayments.value.forEach(p => {
       csvContent += `Loan Payment,"${p.tontine_name}",${p.payment_date},${p.amount},${p.payment_status},${formatPaymentMethod(p.payment_method)}\n`
+    })
+    
+    // Add penalty payments
+    penaltyPayments.value.forEach(p => {
+      csvContent += `Penalty Payment,"${p.tontine_name || 'N/A'}",${p.payment_date},${p.amount},Paid,Mobile Money\n`
     })
     
     // Create and download file

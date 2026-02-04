@@ -262,4 +262,62 @@ router.get('/amount/:userId/:tontineId', async (req, res) => {
   }
 });
 
+// Get dashboard stats for user
+router.get('/dashboard-stats/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const db = req.app.get('db');
+
+  try {
+    // Get total savings (approved contributions)
+    const [savings] = await db.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total_savings 
+       FROM contributions 
+       WHERE user_id = ? AND payment_status = 'Approved'`,
+      [userId]
+    );
+
+    // Get outstanding loans (approved loans minus payments)
+    const [loans] = await db.execute(
+      `SELECT 
+         COALESCE(SUM(lr.total_amount), 0) as total_loans,
+         COALESCE(SUM(CASE WHEN lp.amount IS NOT NULL THEN lp.amount ELSE 0 END), 0) as total_payments
+       FROM loan_requests lr
+       LEFT JOIN loan_payments lp ON lr.id = lp.loan_id AND lp.payment_status = 'Approved'
+       WHERE lr.user_id = ? AND lr.status = 'Approved'`,
+      [userId]
+    );
+
+    // Get penalty stats
+    const [penalties] = await db.execute(
+      `SELECT 
+         COUNT(*) as total_penalties,
+         COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pending_penalties,
+         COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as paid_penalties
+       FROM penalties 
+       WHERE user_id = ?`,
+      [userId]
+    );
+
+    const totalSavings = parseFloat(savings[0].total_savings) || 0;
+    const outstandingLoans = parseFloat(loans[0].total_loans - loans[0].total_payments) || 0;
+    const pendingPenalties = parseFloat(penalties[0].pending_penalties) || 0;
+    const netWorth = totalSavings - outstandingLoans - pendingPenalties;
+
+    res.json({
+      savings: totalSavings,
+      outstandingLoans: outstandingLoans,
+      loanPayments: parseFloat(loans[0].total_payments) || 0,
+      netWorth: netWorth,
+      penalties: {
+        total: parseInt(penalties[0].total_penalties) || 0,
+        pending: pendingPenalties,
+        paid: parseFloat(penalties[0].paid_penalties) || 0
+      }
+    });
+  } catch (error) {
+    console.error('Get dashboard stats error:', error);
+    res.status(500).json({ message: 'Failed to get dashboard stats' });
+  }
+});
+
 module.exports = router;

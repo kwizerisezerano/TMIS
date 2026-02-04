@@ -186,8 +186,7 @@ const fetchPenalties = async (tontineId) => {
   loading.value = true
   try {
     const token = localStorage.getItem('token')
-    const userId = JSON.parse(localStorage.getItem('user')).id
-    const response = await fetch(`http://localhost:8000/api/penalties/user/${userId}`, {
+    const response = await fetch(`http://localhost:8000/api/penalties/user`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }

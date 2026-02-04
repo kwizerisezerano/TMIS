@@ -16,7 +16,7 @@ router.get('/user', authenticateToken, async (req, res) => {
     const [penalties] = await db.execute(`
       SELECT p.*, t.name as tontine_name, lr.amount as loan_amount
       FROM penalties p
-      JOIN tontines t ON p.tontine_id = t.id
+      LEFT JOIN tontines t ON p.tontine_id = t.id
       LEFT JOIN loan_requests lr ON p.loan_id = lr.id
       WHERE p.user_id = ?
       ORDER BY p.created_at DESC
@@ -26,6 +26,29 @@ router.get('/user', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching user penalties:', error);
     res.status(500).json({ error: 'Failed to fetch penalties' });
+  }
+});
+
+// Get penalty stats for dashboard
+router.get('/stats', authenticateToken, async (req, res) => {
+  const db = req.app.get('db');
+  const userId = req.user.userId;
+
+  try {
+    const [stats] = await db.execute(`
+      SELECT 
+        COUNT(*) as total_penalties,
+        SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_amount,
+        SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) as paid_amount,
+        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count
+      FROM penalties 
+      WHERE user_id = ?
+    `, [userId]);
+    
+    res.json(stats[0] || { total_penalties: 0, pending_amount: 0, paid_amount: 0, pending_count: 0 });
+  } catch (error) {
+    console.error('Error fetching penalty stats:', error);
+    res.status(500).json({ error: 'Failed to fetch penalty stats' });
   }
 });
 
