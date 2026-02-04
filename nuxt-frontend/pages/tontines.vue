@@ -55,6 +55,12 @@
             <button @click="viewTontineReport(item.id)" class="text-purple-600 hover:text-purple-900">
               Reports
             </button>
+            <button @click="manageMeetings(item.id)" class="text-blue-600 hover:text-blue-900">
+              Meetings
+            </button>
+            <button @click="managePenalties(item.id)" class="text-orange-600 hover:text-orange-900">
+              Penalties
+            </button>
             <button v-if="!isMember(item.id) && item.member_count < item.max_members && item.status === 'active'" @click="showJoinModal(item)" class="text-blue-600 hover:text-blue-900">
               Join
             </button>
@@ -318,6 +324,16 @@ const viewTontine = (tontineId) => {
 const viewTontineReport = (tontineId) => {
   const router = useRouter()
   router.push(`/reports?tontine=${tontineId}`)
+}
+
+const manageMeetings = (tontineId) => {
+  const router = useRouter()
+  router.push(`/tontine-meetings/${tontineId}`)
+}
+
+const managePenalties = (tontineId) => {
+  const router = useRouter()
+  router.push(`/tontine-penalties/${tontineId}`)
 }
 
 const formatDate = (dateString) => {

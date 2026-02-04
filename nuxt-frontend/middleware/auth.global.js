@@ -7,8 +7,11 @@ export default defineNuxtRouteMiddleware((to, from) => {
   const user = localStorage.getItem('user')
   const isAuthenticated = !!(token && user)
 
+  // Public routes that don't require authentication
+  const publicRoutes = ['/login', '/register', '/verify-email', '/', '/landing', '/terms']
+
   // If not authenticated and trying to access protected route
-  if (!isAuthenticated && !['/login', '/register', '/verify-email', '/', '/landing'].includes(to.path)) {
+  if (!isAuthenticated && !publicRoutes.includes(to.path)) {
     return navigateTo('/login')
   }
 

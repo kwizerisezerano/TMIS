@@ -429,10 +429,13 @@ const fetchLoans = async () => {
   try {
     loading.value = true
     
-    // Fetch loans
-    const response = await fetch(`http://localhost:8000/api/loans/tontine/${selectedTontine.value.id}`)
+    // Fetch user loan requests
+    const response = await fetch(`http://localhost:8000/api/loans/requests/user/${user.value.id}`)
     const data = await response.json()
-    loans.value = data.filter(l => l.user_id === user.value.id)
+    console.log('All user loans:', data)
+    console.log('Selected tontine ID:', selectedTontine.value.id)
+    loans.value = data.filter(l => l.tontine_id == selectedTontine.value.id)
+    console.log('Filtered loans:', loans.value)
     
     // Find active loan and calculate payments
     activeLoan.value = loans.value.find(loan => loan.status === 'Approved' || loan.status === 'approved')

@@ -80,6 +80,28 @@ router.put('/:id/reject', async (req, res) => {
   }
 });
 
+// Get user loan requests (no auth required)
+router.get('/requests/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const db = req.app.get('db');
+
+  try {
+    const [loans] = await db.execute(
+      `SELECT lr.*, t.name as tontine_name 
+       FROM loan_requests lr 
+       JOIN tontines t ON lr.tontine_id = t.id 
+       WHERE lr.user_id = ? 
+       ORDER BY lr.created_at DESC`,
+      [userId]
+    );
+
+    res.json(loans);
+  } catch (error) {
+    console.error('Fetch user loan requests error:', error);
+    res.status(500).json({ message: 'Failed to fetch user loan requests' });
+  }
+});
+
 // Get user loans
 router.get('/user/:userId', async (req, res) => {
   const { userId } = req.params;

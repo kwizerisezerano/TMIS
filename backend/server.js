@@ -36,6 +36,11 @@ const dbConfig = {
 
 const pool = mysql.createPool(dbConfig);
 
+// Initialize penalties automation
+const PenaltiesService = require('./utils/penaltiesService');
+const penaltiesService = new PenaltiesService(pool, io);
+penaltiesService.start();
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/auth', require('./routes/applications'));
@@ -45,6 +50,7 @@ app.use('/api/loans', require('./routes/loans'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/penalties', require('./routes/penalties'));
+app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/members', require('./routes/members'));
 
 // Socket.io for real-time updates

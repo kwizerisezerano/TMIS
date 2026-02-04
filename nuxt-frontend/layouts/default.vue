@@ -256,7 +256,9 @@ const navigation = computed(() => {
     { name: 'Contributions', href: '/contributions', icon: 'i-heroicons-banknotes' },
     { name: 'Loans', href: '/loans', icon: 'i-heroicons-credit-card' },
     { name: 'Payments', href: '/payments', icon: 'i-heroicons-banknotes' },
-    { name: 'Reports', href: '/reports', icon: 'i-heroicons-chart-bar' }
+    { name: 'Reports', href: '/reports', icon: 'i-heroicons-chart-bar' },
+    { name: 'Meetings', href: '/meetings', icon: 'i-heroicons-users' },
+    { name: 'Penalties', href: '/penalties', icon: 'i-heroicons-scale' }
   ]
   
   // Add Tontines link only for admins

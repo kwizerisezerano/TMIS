@@ -1,103 +1,53 @@
 const express = require('express');
+const checkAdmin = require('../middleware/checkAdmin');
+const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
-// Apply penalty for meeting absence (5000 RWF)
-router.post('/meeting-absence', async (req, res) => {
-  const { userId, tontineId, reason } = req.body;
+// Get penalties for logged user (from all their tontines)
+router.get('/user', authenticateToken, async (req, res) => {
   const db = req.app.get('db');
+  const userId = req.user.userId;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID not found' });
+  }
 
   try {
-    await db.execute(
-      `INSERT INTO penalties (user_id, tontine_id, penalty_type, amount, reason) 
-       VALUES (?, ?, 'meeting_absence', 5000.00, ?)`,
-      [userId, tontineId, reason || 'Unexcused absence from meeting']
-    );
-
-    res.json({ message: 'Meeting absence penalty applied: 5000 RWF' });
+    const [penalties] = await db.execute(`
+      SELECT p.*, t.name as tontine_name, lr.amount as loan_amount
+      FROM penalties p
+      JOIN tontines t ON p.tontine_id = t.id
+      LEFT JOIN loan_requests lr ON p.loan_id = lr.id
+      WHERE p.user_id = ?
+      ORDER BY p.created_at DESC
+    `, [userId]);
+    
+    res.json(penalties);
   } catch (error) {
-    console.error('Apply penalty error:', error);
-    res.status(500).json({ message: 'Failed to apply penalty' });
+    console.error('Error fetching user penalties:', error);
+    res.status(500).json({ error: 'Failed to fetch penalties' });
   }
 });
 
-// Apply penalty for late contribution
-router.post('/late-contribution', async (req, res) => {
-  const { userId, tontineId, daysLate } = req.body;
+// Get penalties for a tontine (admin management)
+router.get('/tontine/:tontineId', async (req, res) => {
+  const { tontineId } = req.params;
   const db = req.app.get('db');
 
   try {
-    let amount = 1000; // Default for 10-17 days late
-    let reason = 'Late contribution payment (10-17 days)';
+    const [penalties] = await db.execute(`
+      SELECT p.*, u.names as member_name, u.email, lr.amount as loan_amount
+      FROM penalties p
+      JOIN users u ON p.user_id = u.id
+      LEFT JOIN loan_requests lr ON p.loan_id = lr.id
+      WHERE p.tontine_id = ?
+      ORDER BY p.created_at DESC
+    `, [tontineId]);
 
-    if (daysLate > 17) {
-      amount = 200; // 1% of 20,000 RWF monthly share
-      reason = 'Late contribution payment (after 17th)';
-    }
-
-    await db.execute(
-      `INSERT INTO penalties (user_id, tontine_id, penalty_type, amount, reason) 
-       VALUES (?, ?, 'late_contribution', ?, ?)`,
-      [userId, tontineId, amount, reason]
-    );
-
-    res.json({ message: `Late contribution penalty applied: ${amount} RWF` });
+    res.json(penalties);
   } catch (error) {
-    console.error('Apply penalty error:', error);
-    res.status(500).json({ message: 'Failed to apply penalty' });
-  }
-});
-
-// Apply penalty for being late to meeting (1000 RWF)
-router.post('/late-meeting', async (req, res) => {
-  const { userId, tontineId, minutesLate } = req.body;
-  const db = req.app.get('db');
-
-  try {
-    if (minutesLate > 15) {
-      await db.execute(
-        `INSERT INTO penalties (user_id, tontine_id, penalty_type, amount, reason) 
-         VALUES (?, ?, 'late_meeting', 1000.00, ?)`,
-        [userId, tontineId, `Late to meeting by ${minutesLate} minutes`]
-      );
-
-      res.json({ message: 'Late meeting penalty applied: 1000 RWF' });
-    } else {
-      res.json({ message: 'No penalty - within 15 minute grace period' });
-    }
-  } catch (error) {
-    console.error('Apply penalty error:', error);
-    res.status(500).json({ message: 'Failed to apply penalty' });
-  }
-});
-
-// Apply penalty for loan default (10% of remaining balance)
-router.post('/loan-default', async (req, res) => {
-  const { userId, loanId, remainingBalance } = req.body;
-  const db = req.app.get('db');
-
-  try {
-    const penaltyAmount = remainingBalance * 0.10; // 10% of remaining balance
-
-    // Get loan details
-    const [loan] = await db.execute(
-      'SELECT tontine_id FROM loan_requests WHERE id = ?',
-      [loanId]
-    );
-
-    if (loan.length > 0) {
-      await db.execute(
-        `INSERT INTO penalties (user_id, tontine_id, penalty_type, amount, reason) 
-         VALUES (?, ?, 'loan_default', ?, ?)`,
-        [userId, loan[0].tontine_id, penaltyAmount, `Loan default penalty - 10% of remaining balance (${remainingBalance} RWF)`]
-      );
-
-      res.json({ message: `Loan default penalty applied: ${penaltyAmount} RWF` });
-    } else {
-      res.status(404).json({ message: 'Loan not found' });
-    }
-  } catch (error) {
-    console.error('Apply penalty error:', error);
-    res.status(500).json({ message: 'Failed to apply penalty' });
+    console.error('Fetch penalties error:', error);
+    res.status(500).json({ message: 'Failed to fetch penalties' });
   }
 });
 
@@ -107,60 +57,67 @@ router.get('/user/:userId', async (req, res) => {
   const db = req.app.get('db');
 
   try {
-    const [penalties] = await db.execute(
-      `SELECT p.*, t.name as tontine_name 
-       FROM penalties p 
-       JOIN tontines t ON p.tontine_id = t.id 
-       WHERE p.user_id = ? 
-       ORDER BY p.created_at DESC`,
-      [userId]
-    );
+    const [penalties] = await db.execute(`
+      SELECT p.*, t.name as tontine_name, lr.amount as loan_amount
+      FROM penalties p
+      JOIN tontines t ON p.tontine_id = t.id
+      LEFT JOIN loan_requests lr ON p.loan_id = lr.id
+      WHERE p.user_id = ?
+      ORDER BY p.created_at DESC
+    `, [userId]);
 
     res.json(penalties);
   } catch (error) {
-    console.error('Fetch penalties error:', error);
-    res.status(500).json({ message: 'Failed to fetch penalties' });
+    console.error('Fetch user penalties error:', error);
+    res.status(500).json({ message: 'Failed to fetch user penalties' });
   }
 });
 
-// Pay penalty
-router.post('/pay/:penaltyId', async (req, res) => {
+// Update penalty status (allow users to pay their own penalties)
+router.put('/:penaltyId/status', authenticateToken, async (req, res) => {
   const { penaltyId } = req.params;
-  const { paymentMethod, transactionRef } = req.body;
+  const { status } = req.body;
   const db = req.app.get('db');
+  const userId = req.user.userId;
 
   try {
-    await db.execute(
-      'UPDATE penalties SET status = "paid" WHERE id = ?',
+    // Check if penalty belongs to user or if user is admin
+    const [penalty] = await db.execute(
+      'SELECT user_id FROM penalties WHERE id = ?',
       [penaltyId]
     );
 
-    res.json({ message: 'Penalty payment recorded successfully' });
-  } catch (error) {
-    console.error('Pay penalty error:', error);
-    res.status(500).json({ message: 'Failed to record penalty payment' });
-  }
-});
+    if (penalty.length === 0) {
+      return res.status(404).json({ message: 'Penalty not found' });
+    }
 
-// Get tontine penalties (for executives)
-router.get('/tontine/:tontineId', async (req, res) => {
-  const { tontineId } = req.params;
-  const db = req.app.get('db');
-
-  try {
-    const [penalties] = await db.execute(
-      `SELECT p.*, u.names as member_name 
-       FROM penalties p 
-       JOIN users u ON p.user_id = u.id 
-       WHERE p.tontine_id = ? 
-       ORDER BY p.created_at DESC`,
-      [tontineId]
+    // Get user role
+    const [user] = await db.execute(
+      'SELECT role FROM users WHERE id = ?',
+      [userId]
     );
 
-    res.json(penalties);
+    const isAdmin = user[0]?.role === 'admin' || user[0]?.role === 'president';
+    const isOwner = penalty[0].user_id === userId;
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized to update this penalty' });
+    }
+
+    const updateData = { status };
+    if (status === 'paid') {
+      updateData.paid_at = new Date();
+    }
+
+    await db.execute(
+      'UPDATE penalties SET status = ?, paid_at = ? WHERE id = ?',
+      [status, status === 'paid' ? new Date() : null, penaltyId]
+    );
+
+    res.json({ message: 'Penalty status updated successfully', success: true });
   } catch (error) {
-    console.error('Fetch tontine penalties error:', error);
-    res.status(500).json({ message: 'Failed to fetch tontine penalties' });
+    console.error('Update penalty status error:', error);
+    res.status(500).json({ message: 'Failed to update penalty status' });
   }
 });
 

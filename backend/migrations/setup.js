@@ -32,6 +32,9 @@ async function setupDatabase() {
 
     // Drop existing tables in correct order
     const dropTables = [
+      'DROP TABLE IF EXISTS meeting_attendance',
+      'DROP TABLE IF EXISTS meetings',
+      'DROP TABLE IF EXISTS penalties',
       'DROP TABLE IF EXISTS notifications',
       'DROP TABLE IF EXISTS loan_payments',
       'DROP TABLE IF EXISTS loan_requests',
@@ -175,6 +178,64 @@ async function setupDatabase() {
       )
     `);
     console.log('Notifications table created');
+
+    // Create penalties table
+    await connection.execute(`
+      CREATE TABLE penalties (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        loan_id int(11) DEFAULT NULL,
+        user_id int(11) NOT NULL,
+        tontine_id int(11) NOT NULL,
+        amount decimal(10,2) NOT NULL,
+        reason text NOT NULL,
+        status enum('pending','paid') DEFAULT 'pending',
+        paid_at timestamp NULL,
+        created_at timestamp NOT NULL DEFAULT current_timestamp(),
+        PRIMARY KEY (id),
+        FOREIGN KEY (loan_id) REFERENCES loan_requests(id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (tontine_id) REFERENCES tontines(id)
+      )
+    `);
+    console.log('Penalties table created');
+
+    // Create meetings table
+    await connection.execute(`
+      CREATE TABLE meetings (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        tontine_id int(11) NOT NULL,
+        title varchar(255) NOT NULL,
+        description text,
+        meeting_date datetime NOT NULL,
+        location varchar(255),
+        status enum('scheduled','completed','cancelled') DEFAULT 'scheduled',
+        created_by int(11) NOT NULL,
+        created_at timestamp NOT NULL DEFAULT current_timestamp(),
+        PRIMARY KEY (id),
+        FOREIGN KEY (tontine_id) REFERENCES tontines(id),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )
+    `);
+    console.log('Meetings table created');
+
+    // Create meeting_attendance table
+    await connection.execute(`
+      CREATE TABLE meeting_attendance (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        meeting_id int(11) NOT NULL,
+        user_id int(11) NOT NULL,
+        status enum('present','absent','late','excused') DEFAULT 'absent',
+        arrival_time timestamp NULL,
+        excuse_reason text,
+        penalty_applied tinyint(1) DEFAULT 0,
+        created_at timestamp NOT NULL DEFAULT current_timestamp(),
+        PRIMARY KEY (id),
+        UNIQUE KEY unique_attendance (meeting_id, user_id),
+        FOREIGN KEY (meeting_id) REFERENCES meetings(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+    console.log('Meeting attendance table created');
 
     // Insert default users from The Future leadership
     const bcrypt = require('bcryptjs');

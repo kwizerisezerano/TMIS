@@ -59,7 +59,7 @@ router.post('/contribution', async (req, res) => {
         paymentResult = { success: true, transactionId: `TEST_${Date.now()}` };
     }
 
-    if (paymentResult.success) {
+    if (paymentResult.success && paymentResult.gatewaySuccess) {
       const paymentStatus = paymentResult.lanariSuccess ? 'Approved' : (paymentMethod === 'mobile_money' ? 'Pending' : 'Approved');
       
       const [result] = await db.execute(
@@ -93,7 +93,7 @@ router.post('/contribution', async (req, res) => {
 
       res.json({
         success: true,
-        message: paymentStatus === 'Approved' ? 'Payment completed successfully' : 'Payment initiated - awaiting confirmation',
+        message: 'Payment completed successfully',
         contributionId: result.insertId,
         transactionRef,
         status: paymentStatus
@@ -101,7 +101,7 @@ router.post('/contribution', async (req, res) => {
     } else {
       res.status(400).json({
         success: false,
-        message: 'Payment failed',
+        message: 'Payment was not completed. Please try again.',
         error: paymentResult.error
       });
     }
@@ -176,7 +176,7 @@ router.post('/loan-payment', async (req, res) => {
         paymentResult = { success: true, transactionId: `TEST_${Date.now()}` };
     }
 
-    if (paymentResult.success) {
+    if (paymentResult.success && paymentResult.gatewaySuccess) {
       const paymentStatus = paymentResult.lanariSuccess ? 'Approved' : (paymentMethod === 'mobile_money' ? 'Pending' : 'Approved');
 
       // Record loan payment
@@ -213,7 +213,7 @@ router.post('/loan-payment', async (req, res) => {
 
       res.status(201).json({
         success: true,
-        message: paymentStatus === 'Approved' ? 'Payment completed successfully' : 'Payment initiated - awaiting confirmation',
+        message: 'Loan payment completed successfully',
         paymentId: result.insertId,
         transactionRef,
         paymentStatus,
@@ -222,7 +222,7 @@ router.post('/loan-payment', async (req, res) => {
     } else {
       res.status(400).json({
         success: false,
-        message: 'Payment failed',
+        message: 'Loan payment was not completed. Please try again.',
         error: paymentResult.error
       });
     }
@@ -271,6 +271,8 @@ async function processLoanMobileMoneyPayment(paymentData, amount, io, userId, to
                            (result.message && result.message.toLowerCase().includes('confirmed')) ||
                            (result.message && result.message.toLowerCase().includes('completed'));
     
+    const isGatewaySuccess = result.gateway_response && result.gateway_response.status === 200;
+    
     // If successful, start automatic status checking for loan payments
     if (isLanariSuccess) {
       setTimeout(() => checkLoanPaymentStatus(result.transaction_id, transactionRef, db, io, tontineId, userId, 0), 10000);
@@ -289,8 +291,9 @@ async function processLoanMobileMoneyPayment(paymentData, amount, io, userId, to
     return {
       success: true,
       lanariSuccess: isLanariSuccess,
+      gatewaySuccess: isGatewaySuccess,
       transactionId: result.transaction_id || `LANARI_${Date.now()}`,
-      error: !isLanariSuccess ? result.message : null
+      error: !isLanariSuccess || !isGatewaySuccess ? result.message : null
     };
   } catch (error) {
     console.log('Lanari loan payment error:', error.message);
@@ -341,13 +344,15 @@ async function processMobileMoneyPayment(paymentData, amount, io, userId, tontin
     console.log('Lanari response:', response.data);
     const result = response.data;
     
-    // Check if payment was successful
+    // Check if payment was successful and gateway status is 200
     const isLanariSuccess = result.success || 
                            result.status === 'success' || 
                            (result.transaction_id && result.transaction_id !== 'pending' && result.transaction_id !== 'failed') ||
                            (result.message && result.message.toLowerCase().includes('successfully')) ||
                            (result.message && result.message.toLowerCase().includes('confirmed')) ||
                            (result.message && result.message.toLowerCase().includes('completed'));
+    
+    const isGatewaySuccess = result.gateway_response && result.gateway_response.status === 200;
     
     // If successful, start automatic status checking immediately and repeatedly
     if (isLanariSuccess) {
@@ -368,8 +373,9 @@ async function processMobileMoneyPayment(paymentData, amount, io, userId, tontin
     return {
       success: true,
       lanariSuccess: isLanariSuccess,
+      gatewaySuccess: isGatewaySuccess,
       transactionId: result.transaction_id || `LANARI_${Date.now()}`,
-      error: !isLanariSuccess ? result.message : null
+      error: !isLanariSuccess || !isGatewaySuccess ? result.message : null
     };
   } catch (error) {
     console.log('Lanari error:', error.message);
@@ -757,6 +763,72 @@ router.get('/loan-payments/all', async (req, res) => {
   } catch (error) {
     console.error('Fetch all loan payments error:', error);
     res.status(500).json({ message: 'Failed to fetch loan payments' });
+  }
+});
+
+// Process penalty payment
+router.post('/penalty-payment', async (req, res) => {
+  const { penaltyId, amount, phoneNumber } = req.body;
+  const db = req.app.get('db');
+  const io = req.app.get('io');
+
+  try {
+    // Get penalty details
+    const [penalty] = await db.execute(
+      'SELECT p.*, u.names, u.phone FROM penalties p JOIN users u ON p.user_id = u.id WHERE p.id = ?',
+      [penaltyId]
+    );
+
+    if (penalty.length === 0) {
+      return res.status(404).json({ error: 'Penalty not found' });
+    }
+
+    const penaltyData = penalty[0];
+    const transactionRef = `PEN-${Date.now()}-${penaltyId}`;
+
+    // Process mobile money payment
+    const paymentData = {
+      phone: phoneNumber,
+      description: `Penalty payment - ${penaltyData.reason}`
+    };
+
+    const paymentResult = await processMobileMoneyPayment(paymentData, amount, io, penaltyData.user_id, penaltyData.tontine_id, db, transactionRef);
+
+    if (paymentResult.success && paymentResult.gatewaySuccess) {
+      // Update penalty status to paid only if gateway confirms success
+      await db.execute(
+        'UPDATE penalties SET status = "paid", paid_at = NOW() WHERE id = ?',
+        [penaltyId]
+      );
+
+      // Add success notification
+      await db.execute(
+        'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+        [penaltyData.user_id, 'Penalty Payment Successful', `Your penalty payment of RWF ${amount} has been processed successfully.`, 'success']
+      );
+
+      if (io) {
+        io.to(`user-${penaltyData.user_id}`).emit('penalty-paid', {
+          penaltyId,
+          amount,
+          transactionRef
+        });
+      }
+
+      res.json({
+        message: 'Penalty payment completed successfully',
+        penaltyId,
+        transactionRef,
+        status: 'completed'
+      });
+    } else {
+      res.status(400).json({
+        message: 'Payment could not be processed at this time. Please contact support.'
+      });
+    }
+  } catch (error) {
+    console.error('Penalty payment error:', error);
+    res.status(500).json({ error: 'Payment processing failed' });
   }
 });
 

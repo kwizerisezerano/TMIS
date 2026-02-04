@@ -79,7 +79,7 @@ const sendLoanEmail = async (email, loanData) => {
   }
 };
 
-const sendAdminLoanNotification = async (email, loanData) => {
+const sendAdminLoanNotification = async (email, loanData, retryCount = 0) => {
   const mailOptions = {
     from: process.env.EMAIL_USER || 'noreply@thefuture.rw',
     to: email,
@@ -109,6 +109,14 @@ const sendAdminLoanNotification = async (email, loanData) => {
     return true;
   } catch (error) {
     console.error('Admin notification failed:', error);
+    
+    // Retry up to 2 times with delay
+    if (retryCount < 2) {
+      console.log(`Retrying admin email (attempt ${retryCount + 1})...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return sendAdminLoanNotification(email, loanData, retryCount + 1);
+    }
+    
     return false;
   }
 };
@@ -160,4 +168,50 @@ const sendEmail = async (email, subject, message) => {
   }
 };
 
-module.exports = { sendVerificationEmail, sendLoanEmail, sendAdminLoanNotification, sendEmail };
+const sendPenaltyEmail = async (email, penaltyData) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER || 'noreply@thefuture.rw',
+    to: email,
+    subject: 'Penalty Applied - The Future Tontine',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+        <div style="background-color: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 24px;">⚠️ Penalty Applied</h1>
+          <p style="margin: 5px 0 0 0; font-size: 16px;">The Future Tontine</p>
+        </div>
+        
+        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <p style="font-size: 16px; color: #333; margin-bottom: 20px;">Dear ${penaltyData.userName},</p>
+          
+          <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0; color: #856404; font-weight: bold;">A penalty has been applied to your account:</p>
+            <p style="margin: 10px 0 0 0; color: #856404;"><strong>Amount:</strong> RWF ${penaltyData.amount}</p>
+            <p style="margin: 5px 0 0 0; color: #856404;"><strong>Reason:</strong> ${penaltyData.reason}</p>
+          </div>
+          
+          <p style="color: #666; line-height: 1.6;">Please settle this penalty as soon as possible to maintain your good standing in The Future tontine.</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:3001/login" 
+               style="background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
+              💳 Pay Penalty Now
+            </a>
+          </div>
+          
+          <p style="color: #999; font-size: 14px; text-align: center; margin-top: 30px;">The Future Tontine Management</p>
+        </div>
+      </div>
+    `
+  };
+  
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Penalty email sent successfully:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Penalty email send failed:', error);
+    return false;
+  }
+};
+
+module.exports = { sendVerificationEmail, sendLoanEmail, sendAdminLoanNotification, sendEmail, sendPenaltyEmail };
